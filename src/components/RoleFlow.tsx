@@ -1659,11 +1659,37 @@ JSON 포맷:
         </button>
         <button 
           className={`mode-toggle-btn teacher-mode ${viewMode === 'teacher' ? 'active' : ''}`}
-          onClick={() => setViewMode('teacher')}
+          onClick={() => setShowTeacherPasswordModal(true)}
         >
           👩‍🏫 교사 관리 탭
         </button>
       </div>
+      {showTeacherPasswordModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>교사 관리 탭 접근</h2>
+            <p>비밀번호를 입력해주세요.</p>
+            <input
+              type="password"
+              value={teacherPasswordInput}
+              onChange={(e) => setTeacherPasswordInput(e.target.value)}
+              placeholder="비밀번호"
+            />
+            <div className="modal-buttons">
+              <button onClick={() => { setShowTeacherPasswordModal(false); setTeacherPasswordInput(''); }}>취소</button>
+              <button onClick={() => {
+                if (teacherPasswordInput === '1234') {
+                  setViewMode('teacher');
+                  setShowTeacherPasswordModal(false);
+                  setTeacherPasswordInput('');
+                } else {
+                  alert('비밀번호가 틀렸습니다.');
+                }
+              }}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🚀 PROGRESS STEPPER (Rounded, colorful & icon-based) */}
       <div className="role-stepper-container">
