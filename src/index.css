@@ -1957,6 +1957,7 @@ body {
 .cute-slider {
   flex: 1;
   -webkit-appearance: none;
+  appearance: none;
   height: 8px;
   border-radius: 4px;
   background: #cbd5e0;
@@ -1965,6 +1966,7 @@ body {
 
 .cute-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
+  appearance: none;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -2185,6 +2187,7 @@ body {
 .cap-number-input::-webkit-outer-spin-button,
 .cap-number-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
