@@ -2830,4 +2830,32 @@ body {
   transform: translateY(-1px);
 }
 
+/* 🖨️ ADVANCED PRINT CONTROLS */
+@media print {
+  /* Default student print: print only certificate */
+  .certificate-card {
+    display: block !important;
+  }
+  .pledge-section,
+  .class-placement-board,
+  .final-report-table-wrapper,
+  .alert-box-info,
+  .reset-area {
+    display: none !important;
+  }
+
+  /* Teacher printing all: print only placement board and table */
+  .printing-all .certificate-card {
+    display: none !important;
+  }
+  .printing-all .pledge-section {
+    display: none !important;
+  }
+  .printing-all .class-placement-board,
+  .printing-all .final-report-table-wrapper {
+    display: block !important;
+  }
+}
+
+
 

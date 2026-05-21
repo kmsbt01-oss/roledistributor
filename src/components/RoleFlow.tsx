@@ -65,6 +65,46 @@ const DEFAULT_ROLES_MAP: Record<string, { name: string; job: string; reason: str
   'tablet_pc': [{ name: '태블릿 PC 보안관', job: '수업에 쓰는 태블릿 충전선의 엉킴을 정성껏 풀고 모든 기기가 똑바로 충전 단자에 연결되었는지 확인해요.', reason: '다음 디지털 기기 수업 시간에 친구들이 충전 부족으로 공부를 못 하는 일이 없도록 예방하기 위해서예요.' }]
 };
 
+const TRAITS_CATEGORIES = {
+  personality: {
+    title: '성격 🧠',
+    items: [
+      { id: '꼼꼼함', label: '꼼꼼함 🔍', desc: '작은 것도 세심하게 살펴요' },
+      { id: '창의적', label: '창의적 💡', desc: '기발한 아이디어가 많아요' },
+      { id: '규칙준수', label: '규칙준수 📋', desc: '약속과 규칙을 잘 지켜요' },
+      { id: '도우미', label: '친절도우미 🤝', desc: '친구를 돕는 일에 보람을 느껴요' },
+      { id: '용감함', label: '용감함 🦁', desc: '어려운 일도 씩씩하게 도전해요' }
+    ]
+  },
+  behavior: {
+    title: '행동 🏃',
+    items: [
+      { id: '정리정돈', label: '정리정돈 🧹', desc: '주변을 깨끗하게 정리해요' },
+      { id: '활동적', label: '활동적 🏃', desc: '움직이고 청소하는 걸 좋아해요' },
+      { id: '신중함', label: '신중함 🐢', desc: '서두르지 않고 차분히 행동해요' },
+      { id: '협동적', label: '협동적 👥', desc: '친구들과 힘을 합쳐 일해요' }
+    ]
+  },
+  likes: {
+    title: '좋아하는 것 ❤️',
+    items: [
+      { id: '식물사랑', label: '자연식물 🪴', desc: '자연과 식물을 아끼고 돌봐요' },
+      { id: '그림그리기', label: '그림그리기 🎨', desc: '그리고 만들기를 즐겨해요' },
+      { id: '책읽기', label: '독서 📚', desc: '책 속의 새 지식을 좋아해요' },
+      { id: '기기사용', label: '기기사용 💻', desc: '태블릿과 기기 작동을 좋아해요' }
+    ]
+  },
+  skills: {
+    title: '잘하는 것 ✨',
+    items: [
+      { id: '글쓰기', label: '글쓰기 ✍️', desc: '내 생각과 사실을 글로 잘 적어요' },
+      { id: '발표설명', label: '발표설명 🎤', desc: '내 의견을 당당하게 설명해요' },
+      { id: '갈등조율', label: '갈등조율 ⚖️', desc: '친구들의 갈등을 평화롭게 풀어요' },
+      { id: '수리계산', label: '수리계산 🔢', desc: '숫자를 세거나 계산하는 걸 잘해요' }
+    ]
+  }
+};
+
 const TRAITS_LIST = [
   { id: '정리정돈', label: '정리정돈 🧹', desc: '주변을 깨끗하게 정리해요' },
   { id: '식물사랑', label: '식물사랑 🪴', desc: '자연과 식물을 아껴요' },
@@ -76,13 +116,44 @@ const TRAITS_LIST = [
   { id: '글쓰기', label: '글쓰기 ✍️', desc: '글씨를 쓰고 기록하기를 좋아해요' }
 ];
 
+const APPLICATION_KEYWORDS = [
+  '책임감 🎯', '성실함 📅', '친절함 🤝', '도전정신 🏃', '꼭 해보고 싶어요 ❤️', '도움이 되고 싶어요 🙋', '깨끗하게 만들게요 🧹', '정리왕이 될게요 📦', '약속을 잘 지켜요 🤙'
+];
+
+
 export const RoleFlow = () => {
   // --- STATE VARIABLES ---
   const [step, setStep] = useState(0);
   const [studentName, setStudentName] = useState('');
   const [studentGrade, setStudentGrade] = useState<number>(3);
+  const [studentClass, setStudentClass] = useState<number>(1);
   const [studentGender, setStudentGender] = useState<'boy' | 'girl'>('boy');
   
+  // Group Sync States
+  const [groupId, setGroupId] = useState<string>('');
+  const [myStudentId] = useState<string>(() => `student-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+  const [groupRealStudents, setGroupRealStudents] = useState<Record<string, any>>({});
+  const [isTeacherLocked, setIsTeacherLocked] = useState(true);
+  const [showTeacherPasswordModal, setShowTeacherPasswordModal] = useState(false);
+  const [teacherPasswordInput, setTeacherPasswordInput] = useState('');
+  const [isPrintingAll, setIsPrintingAll] = useState(false);
+
+  // Check for group ID in URL on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlGroup = params.get('group');
+    if (urlGroup) {
+      setGroupId(urlGroup);
+      const parts = urlGroup.split('-');
+      if (parts.length === 2) {
+        const grade = parseInt(parts[0]);
+        const cls = parseInt(parts[1]);
+        if (!isNaN(grade)) setStudentGrade(grade);
+        if (!isNaN(cls)) setStudentClass(cls);
+      }
+    }
+  }, []);
+
   const [selectedProblems, setSelectedProblems] = useState<string[]>([]);
   const [customProblem, setCustomProblem] = useState('');
   
@@ -165,6 +236,29 @@ export const RoleFlow = () => {
     // New state: studentTraits
   const [studentTraits, setStudentTraits] = useState<string[]>([]);
 
+  // Custom sync states
+  const [isSubmittedForStep, setIsSubmittedForStep] = useState(false);
+  const [isRegisteredInGroup, setIsRegisteredInGroup] = useState(false);
+  const [applicationKeywords, setApplicationKeywords] = useState<Record<'first' | 'second' | 'third', string[]>>({
+    first: [],
+    second: [],
+    third: []
+  });
+
+  // Reset submit status on step change
+  useEffect(() => {
+    setIsSubmittedForStep(false);
+  }, [step]);
+
+  // Handle selecting a trait (only one per category)
+  const handleSelectTrait = (categoryKey: string, traitId: string) => {
+    setStudentTraits(prev => {
+      const categoryItems = TRAITS_CATEGORIES[categoryKey as keyof typeof TRAITS_CATEGORIES].items.map(item => item.id);
+      const cleanPrev = prev.filter(id => !categoryItems.includes(id));
+      return [...cleanPrev, traitId];
+    });
+  };
+
   // Helper to map traits to roles
   const getMatchingTraitsForRole = (roleName: string): string[] => {
     const name = roleName.toLowerCase();
@@ -172,7 +266,7 @@ export const RoleFlow = () => {
     if (name.includes('분리수거') || name.includes('정리') || name.includes('사물함') || name.includes('보드게임') || name.includes('도서') || name.includes('우유') || name.includes('책')) {
       matches.push('정리정돈');
     }
-    if (name.includes('식물') || name.includes('화분') || name.includes('자연')) {
+    if (name.includes('식물') || name.includes('화분') || name.includes('자연') || name.includes('동물')) {
       matches.push('식물사랑');
     }
     if (name.includes('쓸기') || name.includes('바닥') || name.includes('청소') || name.includes('칠판') || name.includes('지우개')) {
@@ -192,6 +286,25 @@ export const RoleFlow = () => {
     }
     if (name.includes('글') || name.includes('기록') || name.includes('서명') || name.includes('보고서')) {
       matches.push('글쓰기');
+    }
+    // New Traits Matchers
+    if (name.includes('그림') || name.includes('그리기') || name.includes('미술') || name.includes('디자인') || name.includes('칠판')) {
+      matches.push('그림그리기');
+    }
+    if (name.includes('책') || name.includes('독서') || name.includes('학급문고')) {
+      matches.push('책읽기');
+    }
+    if (name.includes('태블릿') || name.includes('충전') || name.includes('기기') || name.includes('컴퓨터')) {
+      matches.push('기기사용');
+    }
+    if (name.includes('발표') || name.includes('설명') || name.includes('소개')) {
+      matches.push('발표설명');
+    }
+    if (name.includes('조율') || name.includes('중재') || name.includes('평화')) {
+      matches.push('갈등조율');
+    }
+    if (name.includes('계산') || name.includes('숫자') || name.includes('우유') || name.includes('번호')) {
+      matches.push('수리계산');
     }
     return matches;
   };
@@ -221,6 +334,193 @@ export const RoleFlow = () => {
 
     return traitsScore;
   };
+
+  // Calculate suitability for an arbitrary student
+  const calculateSuitabilityForStudent = (
+    sTraits: string[],
+    sFitAnswers: Record<string, { q1: number; q2: number; q3: number }>,
+    roleId: string
+  ): number => {
+    const role = rolePool.find(r => r.id === roleId);
+    if (!role) return 50;
+
+    const matchingTraits = getMatchingTraitsForRole(role.name);
+    let traitsScore = 70;
+    if (sTraits && sTraits.length > 0) {
+      const overlapping = sTraits.filter(t => matchingTraits.includes(t));
+      traitsScore = 55 + overlapping.length * 18;
+      if (traitsScore > 95) traitsScore = 95;
+    }
+
+    const answers = sFitAnswers ? sFitAnswers[roleId] : undefined;
+    if (answers) {
+      const total = answers.q1 + answers.q2 + answers.q3;
+      const surveyScore = Math.round((total / 15) * 100);
+      return Math.round(traitsScore * 0.4 + surveyScore * 0.6);
+    }
+
+    return traitsScore;
+  };
+
+  // Teacher State sync push effect
+  useEffect(() => {
+    if (viewMode === 'teacher' && groupId) {
+      const pushState = async () => {
+        try {
+          await fetch(`/api/sync?group=${encodeURIComponent(groupId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'update_state',
+              state: {
+                step,
+                rolePool,
+                roleVotes,
+                classmates,
+                assignments,
+                hasVotedSimulated,
+                classmateCount,
+                isAutoCapacity,
+                customCapacity,
+                matchDetails
+              }
+            })
+          });
+        } catch (e) {
+          console.error("Error pushing teacher state:", e);
+        }
+      };
+      pushState();
+    }
+  }, [
+    viewMode,
+    groupId,
+    step,
+    rolePool,
+    roleVotes,
+    classmates,
+    assignments,
+    hasVotedSimulated,
+    classmateCount,
+    isAutoCapacity,
+    customCapacity,
+    matchDetails
+  ]);
+
+  // Student State sync push effect
+  useEffect(() => {
+    if (viewMode === 'student' && groupId && studentName.trim() && isRegisteredInGroup) {
+      const pushStudent = async () => {
+        try {
+          const studentInfo = {
+            id: myStudentId,
+            name: studentName,
+            gender: studentGender,
+            traits: studentTraits,
+            step: step,
+            isDone: isSubmittedForStep,
+            selectedProblems,
+            brainstormComment: userBrainstormComment,
+            userVotes,
+            fitTestAnswers,
+            applications,
+            applicationReasons,
+            pledge: pledge
+          };
+          await fetch(`/api/sync?group=${encodeURIComponent(groupId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'submit_student',
+              student: studentInfo
+            })
+          });
+        } catch (e) {
+          console.error("Error pushing student state:", e);
+        }
+      };
+      pushStudent();
+    }
+  }, [
+    viewMode,
+    groupId,
+    studentName,
+    studentGender,
+    studentTraits,
+    isSubmittedForStep,
+    selectedProblems,
+    userBrainstormComment,
+    userVotes,
+    fitTestAnswers,
+    applications,
+    applicationReasons,
+    pledge,
+    myStudentId,
+    step,
+    isRegisteredInGroup
+  ]);
+
+  // Group Polling effect
+  useEffect(() => {
+    if (!groupId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/sync?group=${encodeURIComponent(groupId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const serverState = data.state;
+          if (serverState) {
+            setGroupRealStudents(serverState.students || {});
+            
+            if (viewMode === 'student') {
+              if (typeof serverState.step === 'number' && serverState.step !== step) {
+                setStep(serverState.step);
+              }
+              if (Array.isArray(serverState.rolePool)) {
+                setRolePool(serverState.rolePool);
+              }
+              if (serverState.roleVotes) {
+                setRoleVotes(serverState.roleVotes);
+              }
+              if (Array.isArray(serverState.classmates)) {
+                setClassmates(serverState.classmates);
+              }
+              if (serverState.assignments) {
+                setAssignments(serverState.assignments);
+              }
+              setHasVotedSimulated(!!serverState.hasVotedSimulated);
+              setClassmateCount(serverState.classmateCount || 24);
+              setIsAutoCapacity(serverState.isAutoCapacity ?? true);
+              setCustomCapacity(serverState.customCapacity || {});
+              setMatchDetails(serverState.matchDetails || {});
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error polling group state:", e);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [groupId, viewMode, step]);
+
+  // Handle reset isPrintingAll after printing
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsPrintingAll(false);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
+
+  const handlePrintAll = () => {
+    setIsPrintingAll(true);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
 
   const calculatePercent = (roleId: string): number => {
     return calculateSuitability(roleId);
