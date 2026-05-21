@@ -1880,7 +1880,7 @@ JSON 포맷:
                 <p className="stage-desc">지금 우리 반 교실에서 해결이 필요한 불편하거나 지저분한 고민을 2~3개 골라줘!</p>
                 
                 <div className="problems-grid">
-                  {PROBLEM_LIST.map(p => {
+                  {[...PROBLEM_LIST, ...customProblemsList].map(p => {
                     const isSelected = selectedProblems.includes(p.id);
                     return (
                       <div 
