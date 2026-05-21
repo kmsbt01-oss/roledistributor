@@ -1,11 +1,12 @@
-import { Chatbot } from './components/Chatbot';
+import { RoleFlow } from './components/RoleFlow';
 
 function App() {
   return (
     <div className="app-container">
-      <Chatbot />
+      <RoleFlow />
     </div>
   );
 }
 
 export default App;
+
