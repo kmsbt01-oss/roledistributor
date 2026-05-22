@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Sparkles, CheckCircle2, Compass, FileText, 
+  Sparkles, CheckCircle2, Compass, FileText, BarChart3, 
   RefreshCw, Award, ChevronRight, ChevronLeft, User, 
   Smile, Meh, Frown, Plus, Trash2, AlertCircle, Check, 
   RotateCcw, Printer, Heart, Volume2, Search, MessageSquare,
@@ -24,7 +24,9 @@ const STEPS = [
   { label: '역할 제안', icon: Compass },
   { label: '역할 투표', icon: Heart },
   { label: '나와 맞춤', icon: Smile },
-  { label: '역할 지원 및 경쟁률', icon: FileText },
+  { label: '역할 지원', icon: FileText },
+  { label: '경쟁률 확인', icon: BarChart3 },
+  { label: '생각 수정', icon: RefreshCw },
   { label: '역할 배정', icon: Sparkles },
   { label: '최종 발표', icon: Award }
 ];
@@ -139,27 +141,6 @@ export const RoleFlow = () => {
   const [studentGrade, setStudentGrade] = useState<number>(3);
   const [studentClass, setStudentClass] = useState<number>(1);
   const [studentGender, setStudentGender] = useState<'boy' | 'girl'>('boy');
-  
-  // School and PIN States
-  const [schoolName, setSchoolName] = useState<string>('');
-  const [studentPinInput, setStudentPinInput] = useState<string>('');
-  const [teacherSchoolInput, setTeacherSchoolInput] = useState<string>('');
-  const [teacherGradeInput, setTeacherGradeInput] = useState<number>(3);
-  const [teacherClassInput, setTeacherClassInput] = useState<number>(1);
-
-  // Deterministic 6-digit PIN hash generator
-  const generatePinFromInfo = (school: string, grade: number, cls: number): string => {
-    const combinedStr = `${school.trim()}-${grade}-${cls}`;
-    let hash = 0;
-    for (let i = 0; i < combinedStr.length; i++) {
-      const char = combinedStr.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    const positiveHash = Math.abs(hash);
-    const pinNumber = (positiveHash % 900000) + 100000; // Force exactly 6 digits (100000 to 999999)
-    return pinNumber.toString();
-  };
   
   // Group Sync States
   const [groupId, setGroupId] = useState<string>('');
@@ -280,6 +261,7 @@ export const RoleFlow = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('group') ? 'realtime' : 'simulated';
   });
+  const [customClassCode, setCustomClassCode] = useState('');
 
   // Password modal UI helpers
   const [showPasswordError, setShowPasswordError] = useState(false);
@@ -600,10 +582,7 @@ export const RoleFlow = () => {
                 classmateCount,
                 isAutoCapacity,
                 customCapacity,
-                matchDetails,
-                schoolName,
-                studentGrade,
-                studentClass
+                matchDetails
               }
             })
           });
@@ -625,10 +604,7 @@ export const RoleFlow = () => {
     classmateCount,
     isAutoCapacity,
     customCapacity,
-    matchDetails,
-    schoolName,
-    studentGrade,
-    studentClass
+    matchDetails
   ]);
 
   // Student State sync push effect
@@ -713,15 +689,6 @@ export const RoleFlow = () => {
               if (serverState.assignments) {
                 setAssignments(serverState.assignments);
               }
-              if (serverState.schoolName !== undefined && serverState.schoolName !== schoolName) {
-                setSchoolName(serverState.schoolName);
-              }
-              if (typeof serverState.studentGrade === 'number' && serverState.studentGrade !== studentGrade) {
-                setStudentGrade(serverState.studentGrade);
-              }
-              if (typeof serverState.studentClass === 'number' && serverState.studentClass !== studentClass) {
-                setStudentClass(serverState.studentClass);
-              }
               setHasVotedSimulated(!!serverState.hasVotedSimulated);
               setClassmateCount(serverState.classmateCount || 24);
               setIsAutoCapacity(serverState.isAutoCapacity ?? true);
@@ -736,7 +703,7 @@ export const RoleFlow = () => {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [groupId, viewMode, step, schoolName, studentGrade, studentClass]);
+  }, [groupId, viewMode, step]);
 
   // Handle reset isPrintingAll after printing
   useEffect(() => {
@@ -787,12 +754,18 @@ export const RoleFlow = () => {
         setMascotSpeech(`각 역할이 어떤 일을 하는지 살펴보고, 나와 얼마나 잘 맞는지 '적합도 검사'를 해보자! 최소 3개 이상의 역할을 클릭해 스마일 스티커를 붙여줘! ⭐`);
         break;
       case 6:
-        setMascotSpeech(`하고 싶은 역할을 1~3지망까지 고르고 지원서를 작성해보자! 우측 그래프에서 실시간으로 경쟁률과 친구들이 쓴 지망 사연을 확인할 수 있어. 필요하다면 언제든 마음껏 수정해도 좋아! 📊`);
+        setMascotSpeech(`이제 하고 싶은 역할을 1지망부터 3지망까지 고를 시간이야! 왜 이 역할을 잘할 수 있는지 마음을 담아 써보자. 쓰기가 힘들면 내 🪄 AI 마술봉을 눌러봐!`);
         break;
       case 7:
-        setMascotSpeech(`준비 완료! 모두의 선호도와 적합도를 모아서 내가 지혜롭고 공평하게 역할을 나누어 줄게. 과연 어떤 역할을 맡게 될까? 아래 배정 버튼을 눌러줘! 🎲`);
+        setMascotSpeech(`우와! 우리 반 친구들의 지원서가 모두 들어왔어! 역할별로 경쟁률이 어떨지 그래프를 보면서 확인해보자. 친구들이 쓴 지망 이유도 읽어볼 수 있어!`);
         break;
       case 8:
+        setMascotSpeech(`친구들의 경쟁률을 보니 어때? 혹시 다른 역할에 가보고 싶어졌니? 지망을 바꾸고 싶다면 '딱 한 번만' 수정할 기회를 줄게! 그대로 두어도 좋아.`);
+        break;
+      case 9:
+        setMascotSpeech(`준비 완료! 모두의 선호도와 적합도를 모아서 내가 지혜롭고 공평하게 역할을 나누어 줄게. 과연 어떤 역할을 맡게 될까? 아래 배정 버튼을 눌러줘! 🎲`);
+        break;
+      case 10:
         setMascotSpeech(`축하해! 🎉 우리 교실의 고민을 멋지게 해결해줄 역할로 최종 선정되었어! 임명장을 확인하고, 이번 학기 동안 어떤 마음으로 활동할지 다짐을 적어 서명해봐!`);
         break;
       default:
@@ -901,11 +874,19 @@ export const RoleFlow = () => {
         alert(`나와의 적합도를 알아보기 위해 최소 ${Math.min(3, rolePool.length)}개 이상의 역할에 스마일 스티커를 붙여주세요! (현재 ${testedCount}개 완료)`);
         return;
       }
-      // Generate simulated classmates when moving to Step 6
-      if (classmates.length === 0) {
-        const generated = generateClassmates(classmateCount, rolePool);
-        setClassmates(generated);
+    }
+    if (step === 6) {
+      if (!applications.first) {
+        alert('1지망 역할은 꼭 선택해주셔야 해요!');
+        return;
       }
+      if (!applicationReasons.first.trim()) {
+        alert('1지망 역할에 지원하는 이유를 적어주세요!');
+        return;
+      }
+      // Generate simulated classmates when moving to Step 7 (경쟁률 확인)
+      const generatedClassmates = generateClassmates(classmateCount, rolePool);
+      setClassmates(generatedClassmates);
     }
     setStep(prev => prev + 1);
   };
@@ -1592,9 +1573,21 @@ JSON 포맷:
       counts[role.id] = { first: 0, second: 0, third: 0, total: 0 };
     });
 
-    const students = getAllStudentsList();
-    students.forEach(st => {
-      const { first, second, third } = st.applications;
+    if (applications.first) {
+      counts[applications.first].first++;
+      counts[applications.first].total++;
+    }
+    if (applications.second) {
+      counts[applications.second].second++;
+      counts[applications.second].total++;
+    }
+    if (applications.third) {
+      counts[applications.third].third++;
+      counts[applications.third].total++;
+    }
+
+    classmates.forEach(mate => {
+      const { first, second, third } = mate.applications;
       if (counts[first]) {
         counts[first].first++;
         counts[first].total++;
@@ -1612,51 +1605,63 @@ JSON 포맷:
     return counts;
   };
 
-  // Step 6: Submit application and trigger simulation modifications
-  const handleStudentSubmitApplications = (e?: React.FormEvent) => {
+  // Step 8: Modifications logic
+  const handleModifySubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!applications.first) {
-      alert('1지망 역할은 꼭 선택해주셔야 해요!');
+      alert('1지망은 꼭 적어줘야 해!');
       return;
     }
     if (!applicationReasons.first.trim()) {
-      alert('1지망 역할에 지원하는 이유를 적어주세요!');
+      alert('1지망을 선택한 이유를 채워줘!');
       return;
     }
 
-    if (groupId) {
-      setIsSubmittedForStep(true);
-    } else {
-      const stats = getStats();
-      const allStudentsList = getAllStudentsList();
-      const roleCapacities = calculateDynamicCapacities(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
+    const stats = getStats();
+    
+    const allStudentsList: Student[] = [
+      {
+        id: 'user-student',
+        name: studentName + ' (나)',
+        isUser: true,
+        applications: { ...applications },
+        suitability: {}
+      },
+      ...classmates.map(c => ({
+        id: c.id,
+        name: c.name,
+        isUser: false,
+        applications: c.applications,
+        suitability: c.suitability
+      }))
+    ];
+    const roleCapacities = calculateDynamicCapacities(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
 
-      const updatedClassmates = classmates.map((mate) => {
-        const firstRoleCount = stats[mate.applications.first]?.first || 0;
-        const capacity = roleCapacities[mate.applications.first] !== undefined ? roleCapacities[mate.applications.first] : 1;
-        if (firstRoleCount > capacity + 1 && Math.random() < 0.3) {
-          const lessCompetitiveRoles = rolePool
-            .filter(r => r.id !== mate.applications.first)
-            .sort((a, b) => (stats[a.id]?.first || 0) - (stats[b.id]?.first || 0));
+    const updatedClassmates = classmates.map((mate) => {
+      const firstRoleCount = stats[mate.applications.first]?.first || 0;
+      const capacity = roleCapacities[mate.applications.first] !== undefined ? roleCapacities[mate.applications.first] : 1;
+      if (firstRoleCount > capacity + 1 && Math.random() < 0.3) {
+        const lessCompetitiveRoles = rolePool
+          .filter(r => r.id !== mate.applications.first)
+          .sort((a, b) => (stats[a.id]?.first || 0) - (stats[b.id]?.first || 0));
 
-          if (lessCompetitiveRoles.length > 0) {
-            const newFirst = lessCompetitiveRoles[0].id;
-            return {
-              ...mate,
-              applications: {
-                ...mate.applications,
-                first: newFirst
-              }
-            };
-          }
+        if (lessCompetitiveRoles.length > 0) {
+          const newFirst = lessCompetitiveRoles[0].id;
+          return {
+            ...mate,
+            applications: {
+              ...mate.applications,
+              first: newFirst
+            }
+          };
         }
-        return mate;
-      });
+      }
+      return mate;
+    });
 
-      setClassmates(updatedClassmates);
-      setHasModified(true);
-      nextStep();
-    }
+    setClassmates(updatedClassmates);
+    setHasModified(true);
+    nextStep();
   };
 
   // Step 9: Allocation Trigger
@@ -1750,7 +1755,7 @@ JSON 포맷:
 
   // Force move step from teacher control panel
   const handleForceMoveStep = (newStep: number) => {
-    if (newStep >= 6 && classmates.length === 0) {
+    if (newStep >= 7 && classmates.length === 0) {
       if (rolePool.length === 0) {
         alert('이동하려는 단계에 가상 학생 데이터가 필요하나 역할 풀이 정의되지 않았습니다. 역할을 먼저 생성해주세요.');
         return;
@@ -1876,8 +1881,7 @@ JSON 포맷:
           isUser: false,
           gender: c.gender,
           applications: c.applications,
-          suitability: c.suitability,
-          reasons: c.reasons
+          suitability: c.suitability
         }))
       ];
     }
@@ -1895,7 +1899,7 @@ JSON 포맷:
         name: s.name,
         isUser: s.id === myStudentId,
         gender: s.gender || 'boy',
-        applications: s.id === myStudentId ? { ...applications } : (s.applications || { first: '', second: '', third: '' }),
+        applications: s.applications || { first: '', second: '', third: '' },
         suitability
       };
     });
@@ -1908,32 +1912,10 @@ JSON 포맷:
       isUser: false,
       gender: c.gender,
       applications: c.applications,
-      suitability: c.suitability,
-      reasons: c.reasons
+      suitability: c.suitability
     }));
 
     return [...realStudentsList, ...simulatedList];
-  };
-
-  const getStudentReason = (student: any, rank: 'first' | 'second' | 'third'): string => {
-    if (student.id === 'user-student' || student.id === myStudentId || student.isUser) {
-      return applicationReasons[rank] || '';
-    }
-    // If it's a real student in the group, they have applications / applicationReasons on their object
-    const realStudent = groupRealStudents[student.id];
-    if (realStudent && realStudent.applicationReasons) {
-      return realStudent.applicationReasons[rank] || '';
-    }
-    // If it's a simulated classmate
-    if (student.reasons) {
-      return student.reasons[rank] || '';
-    }
-    // Fallback: search in the classmates list
-    const mate = classmates.find(c => c.id === student.id);
-    if (mate && mate.reasons) {
-      return mate.reasons[rank] || '';
-    }
-    return '';
   };
 
   const getStudentStepStatus = (student: DashboardStudent, stepIndex: number): 'done' | 'active' | 'locked' => {
@@ -2007,12 +1989,10 @@ JSON 포맷:
     groupedRoles[probId].push(role);
   });
 
-  const handleTeacherClassSettingsChange = (school: string, grade: number, cls: number) => {
-    setSchoolName(school);
+  const handleTeacherGradeClassChange = (grade: number, cls: number) => {
     setStudentGrade(grade);
     setStudentClass(cls);
-    const pin = generatePinFromInfo(school, grade, cls);
-    setGroupId(pin);
+    setGroupId(`${grade}-${cls}`);
   };
 
   const handleToggleKeyword = (rank: 'first' | 'second' | 'third', keyword: string) => {
@@ -2289,7 +2269,7 @@ JSON 포맷:
   const isStudentWaiting = !!(
     groupId && 
     viewMode === 'student' && 
-    ((step === 0 && isRegisteredInGroup) || (step > 0 && step <= 6 && isSubmittedForStep))
+    ((step === 0 && isRegisteredInGroup) || (step > 0 && step <= 8 && isSubmittedForStep))
   );
 
   return (
@@ -2319,72 +2299,26 @@ JSON 포맷:
         </button>
         <button 
           className={`mode-toggle-btn teacher-mode ${viewMode === 'teacher' ? 'active' : ''}`}
-          onClick={() => {
-            setTeacherSchoolInput(schoolName);
-            setTeacherGradeInput(studentGrade || 3);
-            setTeacherClassInput(studentClass || 1);
-            setShowTeacherPasswordModal(true);
-          }}
+          onClick={() => setShowTeacherPasswordModal(true)}
         >
           👩‍🏫 교사 관리 탭
         </button>
       </div>
       {showTeacherPasswordModal && (
         <div className="modern-modal-overlay">
-          <div className={`modern-modal-content ${showPasswordError ? 'shake-error' : ''}`} style={{ maxWidth: '440px' }}>
+          <div className={`modern-modal-content ${showPasswordError ? 'shake-error' : ''}`}>
             <div className="modal-icon-bubble">
               <Lock size={32} />
             </div>
-            <h2>교사 관리 탭 접근 및 학급 설정</h2>
-            <p>담당 학교와 학년, 반 정보를 설정하고 보안 비밀번호를 입력해주세요.</p>
+            <h2>교사 관리 탭 접근</h2>
+            <p>보안 비밀번호를 입력해주세요.</p>
             
-            <div className="form-group-sm" style={{ marginBottom: '12px', width: '100%', textAlign: 'left' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '4px' }}>학교 이름</label>
-              <input 
-                type="text" 
-                value={teacherSchoolInput} 
-                onChange={(e) => setTeacherSchoolInput(e.target.value)} 
-                placeholder="학교 이름을 입력하세요 (예: 성남초등학교)" 
-                className="cute-input"
-                style={{ padding: '8px 12px', border: '1px solid #cbd5e0', borderRadius: '10px', width: '100%', fontSize: '0.9rem' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', width: '100%', marginBottom: '16px', textAlign: 'left' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '4px' }}>학년</label>
-                <select 
-                  value={teacherGradeInput} 
-                  onChange={(e) => setTeacherGradeInput(Number(e.target.value))} 
-                  className="cute-select"
-                  style={{ width: '100%', padding: '8px 12px' }}
-                >
-                  {[1, 2, 3, 4, 5, 6].map(g => (
-                    <option key={g} value={g}>{g}학년</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '4px' }}>반</label>
-                <select 
-                  value={teacherClassInput} 
-                  onChange={(e) => setTeacherClassInput(Number(e.target.value))} 
-                  className="cute-select"
-                  style={{ width: '100%', padding: '8px 12px' }}
-                >
-                  {Array.from({ length: 15 }, (_, i) => i + 1).map(c => (
-                    <option key={c} value={c}>{c}반</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="password-input-wrapper" style={{ marginTop: '12px' }}>
+            <div className="password-input-wrapper">
               <input
                 type={showPasswordPlain ? 'text' : 'password'}
                 value={teacherPasswordInput}
                 onChange={(e) => setTeacherPasswordInput(e.target.value)}
-                placeholder="보안 비밀번호"
+                placeholder="비밀번호"
                 className="modern-modal-password-input"
                 maxLength={10}
               />
@@ -2396,7 +2330,7 @@ JSON 포맷:
                 {showPasswordPlain ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '-12px', marginBottom: '24px', width: '100%', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '-12px', marginBottom: '24px' }}>
               💡 초기 비밀번호는 1234입니다.
             </p>
 
@@ -2414,16 +2348,7 @@ JSON 포맷:
               <button 
                 className="modern-modal-btn btn-confirm" 
                 onClick={() => {
-                  if (!teacherSchoolInput.trim()) {
-                    alert('학교 이름을 입력해주세요!');
-                    return;
-                  }
                   if (teacherPasswordInput === '1234') {
-                    const pin = generatePinFromInfo(teacherSchoolInput, teacherGradeInput, teacherClassInput);
-                    setSchoolName(teacherSchoolInput);
-                    setStudentGrade(teacherGradeInput);
-                    setStudentClass(teacherClassInput);
-                    setGroupId(pin);
                     setViewMode('teacher');
                     setShowTeacherPasswordModal(false);
                     setTeacherPasswordInput('');
@@ -2504,31 +2429,19 @@ JSON 포맷:
             {/* 🎒 학급 그룹 연동 및 실시간 참여자 (QR 코드) */}
             <div className="teacher-card control-card" style={{ gridColumn: 'span 2' }}>
               <h3>🎒 우리 반 그룹 연동 및 실시간 참여자 (QR 코드)</h3>
-              <p className="card-desc text-muted">학교 이름, 학년, 반을 설정하면 6자리 고유 PIN 및 QR 코드가 자동으로 만들어집니다. 학생들에게 공유해서 연동 모드로 진행할 수 있어요!</p>
+              <p className="card-desc text-muted">학년과 반을 설정하면 실시간 공유용 QR 코드가 자동으로 만들어집니다. 학생들에게 공유해서 연동 모드로 진행할 수 있어요!</p>
               
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '16px' }}>
-                <div style={{ flex: 1.5, minWidth: '250px' }}>
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1.5, minWidth: '150px' }}>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '6px' }}>학교 이름</label>
-                      <input 
-                        type="text"
-                        className="cute-input"
-                        value={schoolName}
-                        onChange={(e) => handleTeacherClassSettingsChange(e.target.value, studentGrade, studentClass)}
-                        placeholder="예: 성남초등학교"
-                        style={{ padding: '8px 12px', border: '1px solid #cbd5e0', borderRadius: '10px', width: '100%', fontSize: '0.9rem', height: '40px' }}
-                      />
-                    </div>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '6px' }}>대상 학년</label>
                       <select 
                         className="cute-select"
                         value={studentGrade}
-                        onChange={(e) => handleTeacherClassSettingsChange(schoolName, Number(e.target.value), studentClass)}
-                        style={{ height: '40px' }}
+                        onChange={(e) => handleTeacherGradeClassChange(Number(e.target.value), studentClass)}
                       >
-                        {[1, 2, 3, 4, 5, 6].map(g => (
+                        {[3, 4, 5, 6].map(g => (
                           <option key={g} value={g}>{g}학년</option>
                         ))}
                       </select>
@@ -2538,10 +2451,9 @@ JSON 포맷:
                       <select 
                         className="cute-select"
                         value={studentClass}
-                        onChange={(e) => handleTeacherClassSettingsChange(schoolName, studentGrade, Number(e.target.value))}
-                        style={{ height: '40px' }}
+                        onChange={(e) => handleTeacherGradeClassChange(studentGrade, Number(e.target.value))}
                       >
-                        {Array.from({ length: 15 }, (_, i) => i + 1).map(c => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(c => (
                           <option key={c} value={c}>{c}반</option>
                         ))}
                       </select>
@@ -2549,12 +2461,12 @@ JSON 포맷:
                   </div>
                   
                   <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem', wordBreak: 'break-all' }}>
-                    <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>접속 PIN 번호: </span>
-                    <span style={{ fontFamily: 'monospace', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{groupId}</span>
+                    <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>접속 그룹 코드: </span>
+                    <span style={{ fontFamily: 'monospace', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{groupId || `${studentGrade}-${studentClass}`}</span>
                     <div style={{ marginTop: '8px' }}>
                       <strong>학생 접속 주소:</strong>
                       <div style={{ color: '#0284c7', marginTop: '4px', textDecoration: 'underline' }}>
-                        {window.location.origin}/?group={groupId}
+                        {window.location.origin}/?group={groupId || `${studentGrade}-${studentClass}`}
                       </div>
                     </div>
                   </div>
@@ -2562,7 +2474,7 @@ JSON 포맷:
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`${window.location.origin}/?group=${groupId}`)}`} 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`${window.location.origin}/?group=${groupId || `${studentGrade}-${studentClass}`}`)}`} 
                     alt="Class QR Code"
                     style={{ width: '130px', height: '130px' }}
                   />
@@ -2715,9 +2627,9 @@ JSON 포맷:
                   </div>
                 )}
 
-                {step === 7 && (
+                {step === 9 && (
                   <div>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🎲 7단계 매칭 배정 실행</h4>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🎲 9단계 매칭 배정 실행</h4>
                     <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>모든 학생들의 지망 접수가 완료되면 배정 매칭 알고리즘을 수행하여 1인 1역할을 지정합니다.</p>
                     
                     <button 
@@ -2731,9 +2643,9 @@ JSON 포맷:
                   </div>
                 )}
 
-                {step === 8 && (
+                {step === 10 && (
                   <div>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>💾 8단계 최종 결과 저장 및 출력</h4>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>💾 10단계 최종 결과 저장 및 출력</h4>
                     <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>배치표와 우리 반 학생들이 작성한 약속 다짐 서약을 모아서 인쇄하거나 PDF로 보관하세요.</p>
                     
                     <button 
@@ -2746,7 +2658,7 @@ JSON 포맷:
                   </div>
                 )}
 
-                {step !== 3 && step !== 4 && step !== 7 && step !== 8 && (
+                {step !== 3 && step !== 4 && step !== 9 && step !== 10 && (
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>
                     💡 이 단계에는 특별한 개별 제어 버튼이 없습니다. 진행 단계 원격 제어판을 이용해 학급 단계를 조절해 주세요.
                   </p>
@@ -3554,7 +3466,8 @@ JSON 포맷:
                       className={`participation-mode-card ${participationMode === 'realtime' ? 'active' : ''}`}
                       onClick={() => {
                         setParticipationMode('realtime');
-                        setGroupId('');
+                        const code = customClassCode.trim() || `${studentGrade}-${studentClass}`;
+                        setGroupId(code);
                         setIsRegisteredInGroup(false);
                       }}
                     >
@@ -3566,77 +3479,30 @@ JSON 포맷:
                 </div>
 
                 {participationMode === 'realtime' && (
-                  <div className="animate-slide-in" style={{ marginBottom: '16px' }}>
-                    {groupId ? (
-                      <div className="connection-status-box" style={{ background: '#f0fdf4', padding: '16px', borderRadius: '16px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#16a34a', fontWeight: 'bold', marginBottom: '8px' }}>
-                          <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#16a34a', borderRadius: '50%' }}></span>
-                          <span>실시간 학급 연결 완료</span>
-                        </div>
-                        <p style={{ fontSize: '0.95rem', color: '#1e293b', margin: '4px 0 12px 0' }}>
-                          <strong>{schoolName || '학급 정보를 불러오는 중...'}</strong> {schoolName && `${studentGrade}학년 ${studentClass}반`}
-                        </p>
-                        <button
-                          type="button"
-                          className="btn-disconnect"
-                          onClick={() => {
-                            setGroupId('');
-                            setSchoolName('');
-                            setStudentPinInput('');
-                            setIsRegisteredInGroup(false);
-                          }}
-                          style={{
-                            padding: '8px 16px',
-                            background: '#fee2e2',
-                            color: '#ef4444',
-                            border: '1px solid #fca5a5',
-                            borderRadius: '12px',
-                            fontSize: '0.85rem',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          다른 학급 PIN 입력하기 (접속 해제)
-                        </button>
+                  <div className="animate-slide-in" style={{ background: '#f8fafc', padding: '16px', borderRadius: '20px', border: '1px solid #cbd5e1', marginBottom: '16px' }}>
+                    <div className="connection-status-bar" style={{ margin: 0, padding: '8px 12px', background: 'transparent' }}>
+                      <span>연결 상태:</span>
+                      <div className={`status-badge ${groupId ? 'connected' : 'disconnected'}`}>
+                        <span className="status-dot"></span>
+                        <span>{groupId ? '연결됨' : '연결 해제'}</span>
                       </div>
-                    ) : (
-                      <div className="pin-entry-box" style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '8px' }}>선생님이 보여주신 6자리 PIN 번호를 입력하세요</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <input 
-                            type="text"
-                            className="cute-input"
-                            value={studentPinInput}
-                            onChange={(e) => setStudentPinInput(e.target.value.replace(/[^0-9]/g, '').substring(0, 6))}
-                            placeholder="6자리 PIN 번호 입력"
-                            style={{ height: '44px', fontSize: '1rem', borderRadius: '12px', flex: 1, textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (studentPinInput.trim().length !== 6) {
-                                alert('6자리 PIN 번호를 올바르게 입력해주세요!');
-                                return;
-                              }
-                              setGroupId(studentPinInput.trim());
-                            }}
-                            style={{
-                              padding: '0 20px',
-                              background: '#4f46e5',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '12px',
-                              fontWeight: 'bold',
-                              cursor: 'pointer',
-                              height: '44px'
-                            }}
-                          >
-                            입장하기 🎒
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    </div>
+                    
+                    <div className="form-group" style={{ marginTop: '12px', marginBottom: 0 }}>
+                      <label className="input-label" style={{ fontSize: '0.85rem', color: '#64748b' }}>커스텀 학급 코드 입력 (선생님이 알려주신 코드가 있다면 입력하세요)</label>
+                      <input
+                        type="text"
+                        className="cute-input"
+                        value={customClassCode}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomClassCode(val);
+                          setGroupId(val.trim() || `${studentGrade}-${studentClass}`);
+                        }}
+                        placeholder={`기본 코드: ${studentGrade}-${studentClass}`}
+                        style={{ height: '40px', fontSize: '0.9rem', borderRadius: '10px' }}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -3658,14 +3524,16 @@ JSON 포맷:
                     <select
                       className="cute-input"
                       value={studentGrade}
-                      disabled={participationMode === 'realtime' && !!groupId}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setStudentGrade(val);
+                        if (groupId) {
+                          setGroupId(`${val}-${studentClass}`);
+                        }
                       }}
                       style={{ width: '100%', height: '48px', borderRadius: '14px', border: '2px solid #e2e8f0', padding: '0 12px' }}
                     >
-                      {[1, 2, 3, 4, 5, 6].map(g => (
+                      {[3, 4, 5, 6].map(g => (
                         <option key={g} value={g}>{g}학년</option>
                       ))}
                     </select>
@@ -3675,14 +3543,16 @@ JSON 포맷:
                     <select
                       className="cute-input"
                       value={studentClass}
-                      disabled={participationMode === 'realtime' && !!groupId}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setStudentClass(val);
+                        if (groupId) {
+                          setGroupId(`${studentGrade}-${val}`);
+                        }
                       }}
                       style={{ width: '100%', height: '48px', borderRadius: '14px', border: '2px solid #e2e8f0', padding: '0 12px' }}
                     >
-                      {Array.from({ length: 15 }, (_, i) => i + 1).map(c => (
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(c => (
                         <option key={c} value={c}>{c}반</option>
                       ))}
                     </select>
@@ -4171,261 +4041,669 @@ JSON 포맷:
                               {suggestedNames.map((name, nIdx) => (
                                 <button
                                   key={nIdx}
-                             {/* STEP 6: PREFERENCE APPLICATION & COMPETITION GRAPH */}
-            {step === 6 && (
-              <div className="stage-content animate-slide-in">
-                <h2 className="stage-title">✍️ 가고 싶은 역할 지원서 작성 및 실시간 경쟁률</h2>
-                <p className="stage-desc">가장 하고 싶은 1지망, 2지망, 3지망 역할을 고르고 지원 이유를 적어줘! 우측에서 실시간 지원 현황과 친구들의 사연을 바로 볼 수 있어.</p>
-
-                <div className="step-split-layout">
-                  {/* 좌측 영역: 지원서 작성 폼 */}
-                  <div className="split-left-panel">
-                    <div className="applications-form-area" style={{ width: '100%' }}>
-                      
-                      {/* 1지망 */}
-                      <div className="choice-block first-choice" style={{ margin: 0, marginBottom: '20px' }}>
-                        <div className="choice-header-badge first">1지망 (가장 하고 싶은 역할)</div>
-                        
-                        <div className="form-group-sm">
-                          <label>역할 선택</label>
-                          <select
-                            className="cute-select"
-                            value={applications.first}
-                            onChange={(e) => setApplications(prev => ({ ...prev, first: e.target.value }))}
-                          >
-                            <option value="">-- 역할을 선택하세요 --</option>
-                            {rolePool
-                              .filter(r => r.id !== applications.second && r.id !== applications.third)
-                              .map(r => (
-                                <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                              ))}
-                          </select>
-                        </div>
-
-                        {applications.first && (
-                          <>
-                            <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {APPLICATION_KEYWORDS.map(keyword => {
-                                  const isKeywordSelected = (applicationKeywords.first || []).includes(keyword);
-                                  return (
-                                    <button
-                                      key={keyword}
-                                      type="button"
-                                      className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
-                                      onClick={() => handleToggleKeyword('first', keyword)}
-                                      style={{
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.8rem',
-                                        border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
-                                        background: isKeywordSelected ? '#eeebff' : '#ffffff',
-                                        color: isKeywordSelected ? '#4f46e5' : '#4a5568',
-                                        cursor: 'pointer',
-                                        fontWeight: isKeywordSelected ? 'bold' : 'normal',
-                                        transition: 'all 0.15s'
-                                      }}
-                                    >
-                                      {keyword}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="form-group-sm animate-slide-in">
-                              <div className="reason-label-row">
-                                <label>선택하고 싶은 이유</label>
-                                <button
                                   type="button"
-                                  className="btn-ai-helper"
-                                  onClick={() => handleAIDraftReason('first')}
-                                  disabled={isDraftingReason.first}
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #4f46e5',
+                                    padding: '6px 10px',
+                                    borderRadius: '10px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    color: '#4f46e5',
+                                    fontWeight: 'bold'
+                                  }}
+                                  onClick={() => setStudentCustomName(name)}
                                 >
-                                  {isDraftingReason.first ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                                  <span>AI 다듬기 도우미</span>
+                                  {name}
                                 </button>
-                              </div>
-                              <textarea
-                                className="cute-textarea"
-                                value={applicationReasons.first}
-                                onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
-                                placeholder="이 역할을 잘할 수 있는 이유나 다짐을 간단히 적어보세요..."
-                                rows={2}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* 2지망 */}
-                      <div className="choice-block second-choice" style={{ margin: 0, marginBottom: '20px' }}>
-                        <div className="choice-header-badge second">2지망 (두 번째로 하고 싶은 역할)</div>
-                        
-                        <div className="form-group-sm">
-                          <label>역할 선택</label>
-                          <select
-                            className="cute-select"
-                            value={applications.second}
-                            onChange={(e) => setApplications(prev => ({ ...prev, second: e.target.value }))}
-                          >
-                            <option value="">-- 역할을 선택하세요 (생략 가능) --</option>
-                            {rolePool
-                              .filter(r => r.id !== applications.first && r.id !== applications.third)
-                              .map(r => (
-                                <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
                               ))}
-                          </select>
+                            </div>
+                          )}
+
+                          <div className="form-actions-sm" style={{ marginTop: '16px' }}>
+                            <button
+                              type="button"
+                              className="btn-submit-custom"
+                              disabled={!studentCustomName.trim() || !studentCustomJob.trim()}
+                              onClick={() => handleStudentSuggestRole(studentCustomName, studentCustomJob, studentCustomProblem)}
+                            >
+                              우리 반 역할로 추가하기 ➕
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-cancel-custom"
+                              onClick={() => {
+                                setShowStudentAddCustom(false);
+                                setSuggestedNames([]);
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
                         </div>
-
-                        {applications.second && (
-                          <>
-                            <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {APPLICATION_KEYWORDS.map(keyword => {
-                                  const isKeywordSelected = (applicationKeywords.second || []).includes(keyword);
-                                  return (
-                                    <button
-                                      key={keyword}
-                                      type="button"
-                                      className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
-                                      onClick={() => handleToggleKeyword('second', keyword)}
-                                      style={{
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.8rem',
-                                        border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
-                                        background: isKeywordSelected ? '#eeebff' : '#ffffff',
-                                        color: isKeywordSelected ? '#4f46e5' : '#4a5568',
-                                        cursor: 'pointer',
-                                        fontWeight: isKeywordSelected ? 'bold' : 'normal',
-                                        transition: 'all 0.15s'
-                                      }}
-                                    >
-                                      {keyword}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="form-group-sm animate-slide-in">
-                              <div className="reason-label-row">
-                                <label>선택하고 싶은 이유</label>
-                                <button
-                                  type="button"
-                                  className="btn-ai-helper"
-                                  onClick={() => handleAIDraftReason('second')}
-                                  disabled={isDraftingReason.second}
-                                >
-                                  {isDraftingReason.second ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                                  <span>AI 다듬기 도우미</span>
-                                </button>
-                              </div>
-                              <textarea
-                                className="cute-textarea"
-                                value={applicationReasons.second}
-                                onChange={(e) => setApplicationReasons(prev => ({ ...prev, second: e.target.value }))}
-                                placeholder="두 번째로 잘할 수 있는 이유를 적어보세요..."
-                                rows={2}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* 3지망 */}
-                      <div className="choice-block third-choice" style={{ margin: 0 }}>
-                        <div className="choice-header-badge third">3지망 (세 번째로 하고 싶은 역할)</div>
-                        
-                        <div className="form-group-sm">
-                          <label>역할 선택</label>
-                          <select
-                            className="cute-select"
-                            value={applications.third}
-                            onChange={(e) => setApplications(prev => ({ ...prev, third: e.target.value }))}
-                          >
-                            <option value="">-- 역할을 선택하세요 (생략 가능) --</option>
-                            {rolePool
-                              .filter(r => r.id !== applications.first && r.id !== applications.second)
-                              .map(r => (
-                                <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                              ))}
-                          </select>
-                        </div>
-
-                        {applications.third && (
-                          <>
-                            <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {APPLICATION_KEYWORDS.map(keyword => {
-                                  const isKeywordSelected = (applicationKeywords.third || []).includes(keyword);
-                                  return (
-                                    <button
-                                      key={keyword}
-                                      type="button"
-                                      className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
-                                      onClick={() => handleToggleKeyword('third', keyword)}
-                                      style={{
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.8rem',
-                                        border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
-                                        background: isKeywordSelected ? '#eeebff' : '#ffffff',
-                                        color: isKeywordSelected ? '#4f46e5' : '#4a5568',
-                                        cursor: 'pointer',
-                                        fontWeight: isKeywordSelected ? 'bold' : 'normal',
-                                        transition: 'all 0.15s'
-                                      }}
-                                    >
-                                      {keyword}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="form-group-sm animate-slide-in">
-                              <div className="reason-label-row">
-                                <label>선택하고 싶은 이유</label>
-                                <button
-                                  type="button"
-                                  className="btn-ai-helper"
-                                  onClick={() => handleAIDraftReason('third')}
-                                  disabled={isDraftingReason.third}
-                                >
-                                  {isDraftingReason.third ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                                  <span>AI 다듬기 도우미</span>
-                                </button>
-                              </div>
-                              <textarea
-                                className="cute-textarea"
-                                value={applicationReasons.third}
-                                onChange={(e) => setApplicationReasons(prev => ({ ...prev, third: e.target.value }))}
-                                placeholder="이 역할을 지망하는 각오를 간단히 적어보세요..."
-                                rows={2}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
+                      )}
                     </div>
                   </div>
+                ) : (
+                  <div className="custom-role-builder" style={{ marginTop: '24px' }}>
+                    {!showAddCustomRole ? (
+                      <button 
+                        type="button" 
+                        className="btn-add-custom-toggle"
+                        onClick={() => setShowAddCustomRole(true)}
+                      >
+                        <Plus size={16} /> 우리 힘으로 직접 역할 새로 만들기
+                      </button>
+                    ) : (
+                      <form onSubmit={handleAddCustomRoleSubmit} className="custom-role-form animate-slide-in">
+                        <h4>🔨 우리가 만드는 새로운 역할</h4>
+                        <div className="form-group-sm">
+                          <label>역할 이름</label>
+                          <input 
+                            type="text" 
+                            value={newRoleName} 
+                            onChange={e => setNewRoleName(e.target.value)} 
+                            placeholder="예: 칠판 화가, 청소 히어로"
+                            maxLength={15}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>하는 구체적인 일</label>
+                          <textarea 
+                            value={newRoleJob} 
+                            onChange={e => setNewRoleJob(e.target.value)} 
+                            placeholder="이 역할이 매일 해야 하는 일을 구체적으로 적어주세요."
+                            maxLength={100}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>필요한 이유 (생략 가능)</label>
+                          <input 
+                            type="text" 
+                            value={newRoleReason} 
+                            onChange={e => setNewRoleReason(e.target.value)} 
+                            placeholder="이 역할이 왜 교실에 필요할까요?"
+                            maxLength={100}
+                          />
+                        </div>
+                        <div className="form-actions-sm">
+                          <button type="submit" className="btn-submit-custom">추가하기</button>
+                          <button 
+                            type="button" 
+                            className="btn-cancel-custom"
+                            onClick={() => setShowAddCustomRole(false)}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
 
-                  {/* 우측 영역: 실시간 경쟁률 차트 및 친구들 사연 */}
-                  <div className="split-right-panel">
-                    <div className="stats-charts-list-compact">
-                      <h3 className="right-panel-title">📊 우리 반 실시간 지원 현황</h3>
-                      {(() => {
-                        const stats = getStats();
-                        const allStudentsList = getAllStudentsList();
-                        const roleCapacities = calculateDynamicCapacities(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
+                {renderStageFooter(3, undefined, isGeneratingRoles || rolePool.length < 4, '역할 투표하러 가기 🗳️')}
+              </div>
+            )}
 
-                        return rolePool.map(role => {
+            {/* STEP 4: ROLE VOTING & HEART RECOMMENDATIONS */}
+            {step === 4 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">🗳️ 좋은 아이디어에 하트 남기기 (역할 투표)</h2>
+                <p className="stage-desc">우리 교실의 고민을 해결하기 위한 좋은 역할 아이디어에 하트를 꾹 눌러줘! 💖</p>
+
+                <div className="vote-stage-layout" style={{
+                  display: 'grid',
+                  gridTemplateColumns: (groupId && viewMode === 'student') ? '1fr' : '2fr 1fr',
+                  gap: '24px'
+                }}>
+                  {/* Left: Role List for Voting */}
+                  <div className="vote-roles-list">
+                    {rolePool.map(role => {
+                      const prob = PROBLEM_LIST.find(p => p.id === role.problemId) || customProblemsList.find(p => p.id === role.problemId) || { emoji: '✨', title: '기타 고민' };
+                      const isVoted = userVotes.includes(role.id);
+                      const voteCount = getCurrentRoleVotes()[role.id] || 0;
+                      return (
+                        <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`}>
+                          <div className="vote-card-header">
+                            <span className="vote-card-category">{prob.emoji} {prob.title.substring(0, 10)}...</span>
+                            <span className="vote-card-recommended">👤 제안: {role.recommendedBy || 'AI 아리'}</span>
+                          </div>
+                          <h3 className="vote-card-title">{role.name}</h3>
+                          
+                          <div className="vote-card-detail-box job-box">
+                            <span className="detail-box-label">📋 해야 할 일</span>
+                            <p className="detail-box-text">{role.job}</p>
+                          </div>
+                          
+                          <div className="vote-card-detail-box reason-box">
+                            <span className="detail-box-label">💡 필요한 이유</span>
+                            <p className="detail-box-text">{role.reason}</p>
+                          </div>
+                          
+                          <div className="vote-card-footer">
+                            <button
+                              type="button"
+                              className={`btn-vote-toggle ${isVoted ? 'active' : ''}`}
+                              onClick={() => handleToggleUserVote(role.id)}
+                            >
+                              <Heart size={14} fill={isVoted ? 'white' : 'none'} />
+                              <span>{isVoted ? '추천 취소' : '좋은 생각이에요!'}</span>
+                            </button>
+                            <span className="vote-count-badge">❤️ {voteCount}표</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: Vote Status and Control Panel */}
+                  {!(groupId && viewMode === 'student') && (
+                    <div className="vote-status-box">
+                      <h3>🗳️ 투표 진행판</h3>
+                      <p className="status-desc">학급 총원: <strong>{classmateCount + 1}명</strong></p>
+                      <p className="status-desc">현재 역할 후보 수: <strong>{rolePool.length}개</strong></p>
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <div style={{ padding: '10px', background: '#fff9db', border: '1px solid #ffe066', borderRadius: '8px', fontSize: '0.8rem', color: '#f59f00' }}>
+                          ⚠️ 역할 후보 개수가 총원({classmateCount + 1}명)보다 적습니다. 배정 시 인원 비례로 정원이 자동 조정되지만, 역할을 더 늘리고 싶다면 아래 AI 버튼을 눌러보세요.
+                        </div>
+                      )}
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <button
+                          type="button"
+                          className="btn-ai-extra-roles"
+                          onClick={() => handleGenerateExtraRolesAI(classmateCount + 1)}
+                          disabled={isGeneratingExtraRoles}
+                          style={{
+                            marginTop: '8px',
+                            padding: '10px',
+                            background: '#e8f0fe',
+                            color: '#1a73e8',
+                            border: '1.5px dashed #1a73e8',
+                            borderRadius: '8px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            width: '100%'
+                          }}
+                        >
+                          {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
+                        </button>
+                      )}
+
+                      <div className="vote-rankings">
+                        <h4>📊 역할 득표 실시간 순위</h4>
+                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                          {[...rolePool]
+                            .sort((a, b) => (getCurrentRoleVotes()[b.id] || 0) - (getCurrentRoleVotes()[a.id] || 0))
+                            .map((r, idx) => (
+                              <div key={r.id} className="rank-item">
+                                <span className="rank-num">{idx + 1}</span>
+                                <span className="rank-name">{r.name}</span>
+                                <span className="rank-votes">❤️ {getCurrentRoleVotes()[r.id] || 0}표</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-finish-voting"
+                        onClick={handleFinishVoting}
+                        disabled={rolePool.length < 4}
+                        style={{
+                          marginTop: '12px',
+                          padding: '12px',
+                          background: '#4f46e5',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 'bold',
+                          cursor: rolePool.length >= 4 ? 'pointer' : 'not-allowed',
+                          opacity: rolePool.length >= 4 ? 1 : 0.6,
+                          width: '100%'
+                        }}
+                      >
+                        투표 마감하고 다음 단계로
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {renderStageFooter(4, handleStudentFinishVoting, false, '투표 완료 제출하기 💖')}
+              </div>
+            )}
+
+            {/* STEP 5: ROLE EXPLORATION & SUITABILITY TEST */}
+            {step === 5 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">⭐ 나와 어울리는 역할 찾기 (적합도 진단)</h2>
+                <p className="stage-desc">각 역할을 누르고 스마일 스티커를 골라 척도를 평가해봐! 최소 3개 이상 완료해야 해.</p>
+
+                <div className="fit-split-layout">
+                  {/* Role List */}
+                  <div className="fit-role-sidebar">
+                    {rolePool.map(role => {
+                      const stars = calculateStars(role.id);
+                      const isTested = !!fitTestAnswers[role.id];
+                      return (
+                        <div
+                          key={role.id}
+                          className={`fit-role-tab-item ${activeRoleForFit === role.id ? 'active' : ''} ${isTested ? 'tested' : ''}`}
+                          onClick={() => setActiveRoleForFit(role.id)}
+                        >
+                          <div className="tab-item-title-row">
+                            <span>{role.name}</span>
+                            {isTested && <CheckCircle2 size={16} className="checked-icon" />}
+                          </div>
+                          {isTested ? (
+                            <div className="stars-row">
+                              {'⭐'.repeat(stars)}
+                              <span className="percent-text">({calculatePercent(role.id)}%)</span>
+                            </div>
+                          ) : (
+                            <span className="pending-text">스티커 필요 🐣</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Fit Test Form */}
+                  <div className="fit-test-panel">
+                    {activeRoleForFit ? (
+                      (() => {
+                        const role = rolePool.find(r => r.id === activeRoleForFit)!;
+                        const answers = fitTestAnswers[activeRoleForFit] || { q1: 0, q2: 0, q3: 0 };
+                        
+                        return (
+                          <div className="fit-test-content animate-slide-in">
+                            <div className="selected-role-info">
+                              <h3>👑 {role.name}</h3>
+                              <p><strong>할 일:</strong> {role.job}</p>
+                              <p className="reason-quote">" {role.reason} "</p>
+                            </div>
+
+                            <div className="fit-questions-list">
+                              <h4 className="sticker-question-title">👇 질문에 어울리는 스마일 스티커를 클릭해줘!</h4>
+                              
+                              {/* Q1 */}
+                              <div className="question-item">
+                                <p className="q-text">1. 나는 이 역할을 매일매일 성실하게 잘 실천할 수 있나요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>아주 잘해요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>할 수 있어요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>조금 힘들어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Q2 */}
+                              <div className="question-item">
+                                <p className="q-text">2. 이 역할을 할 때 내 마음이 즐겁고 보람찰까요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>신나요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>괜찮아요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>안 하고 싶어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Q3 */}
+                              <div className="question-item">
+                                <p className="q-text">3. 내가 이 일을 하면 친구들이 기뻐하고 교실이 깨끗해질까요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>정말 그래요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>그럴 것 같아요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>잘 모르겠어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="fit-no-selection">
+                        <p>👈 왼쪽에서 역할을 선택해서 적합도 평가 스티커를 붙여주세요!</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {renderStageFooter(5, undefined, Object.keys(fitTestAnswers).length < Math.min(3, rolePool.length), '희망 역할 지원하기')}
+              </div>
+            )}
+
+            {/* STEP 6: PREFERENCE APPLICATION (지망 및 이유) */}
+            {step === 6 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">✍️ 가고 싶은 역할 지원서 작성하기</h2>
+                <p className="stage-desc">가장 하고 싶은 1지망, 2지망, 3지망 역할을 고르고, 그 역할을 하고 싶은 이유를 멋지게 채워줘!</p>
+
+                <div className="applications-form-area">
+                  
+                  {/* 1지망 */}
+                  <div className="choice-block first-choice">
+                    <div className="choice-header-badge first">1지망 (가장 하고 싶은 역할)</div>
+                    
+                    <div className="form-group-sm">
+                      <label>역할 선택</label>
+                      <select
+                        className="cute-select"
+                        value={applications.first}
+                        onChange={(e) => setApplications(prev => ({ ...prev, first: e.target.value }))}
+                      >
+                        <option value="">-- 역할을 선택하세요 --</option>
+                        {rolePool
+                          .filter(r => r.id !== applications.second && r.id !== applications.third)
+                          .map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {applications.first && (
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.first || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('first', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('first')}
+                              disabled={isDraftingReason.first}
+                            >
+                              {isDraftingReason.first ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.first}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
+                            placeholder="이 역할을 잘할 수 있는 이유나 다짐을 간단히 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* 2지망 */}
+                  <div className="choice-block second-choice">
+                    <div className="choice-header-badge second">2지망 (두 번째로 하고 싶은 역할)</div>
+                    
+                    <div className="form-group-sm">
+                      <label>역할 선택</label>
+                      <select
+                        className="cute-select"
+                        value={applications.second}
+                        onChange={(e) => setApplications(prev => ({ ...prev, second: e.target.value }))}
+                      >
+                        <option value="">-- 역할을 선택하세요 (생략 가능) --</option>
+                        {rolePool
+                          .filter(r => r.id !== applications.first && r.id !== applications.third)
+                          .map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {applications.second && (
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.second || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('second', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('second')}
+                              disabled={isDraftingReason.second}
+                            >
+                              {isDraftingReason.second ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.second}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, second: e.target.value }))}
+                            placeholder="두 번째로 잘할 수 있는 이유를 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* 3지망 */}
+                  <div className="choice-block third-choice">
+                    <div className="choice-header-badge third">3지망 (세 번째로 하고 싶은 역할)</div>
+                    
+                    <div className="form-group-sm">
+                      <label>역할 선택</label>
+                      <select
+                        className="cute-select"
+                        value={applications.third}
+                        onChange={(e) => setApplications(prev => ({ ...prev, third: e.target.value }))}
+                      >
+                        <option value="">-- 역할을 선택하세요 (생략 가능) --</option>
+                        {rolePool
+                          .filter(r => r.id !== applications.first && r.id !== applications.second)
+                          .map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {applications.third && (
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.third || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('third', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('third')}
+                              disabled={isDraftingReason.third}
+                            >
+                              {isDraftingReason.third ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.third}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, third: e.target.value }))}
+                            placeholder="이 역할을 지망하는 각오를 간단히 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                </div>
+
+                {renderStageFooter(6, undefined, !applications.first || !applicationReasons.first.trim(), '우리 반 경쟁률 확인하기')}
+              </div>
+            )}
+
+            {/* STEP 7: VIEW STATISTICS & COMPETITION (경쟁률 확인) */}
+            {step === 7 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">📊 우리 반 친구들의 실시간 지원 통계</h2>
+                <p className="stage-desc">가상 친구 {classmateCount}명을 포함해 총 {classmateCount + 1}명의 1지망 지원 현황입니다. 각 역할을 클릭해서 경쟁자 명단과 지원 이유를 살펴보세요.</p>
+
+                {(() => {
+                  const stats = getStats();
+                  const allStudentsList: Student[] = [
+                    {
+                      id: 'user-student',
+                      name: studentName + ' (나)',
+                      isUser: true,
+                      applications: { ...applications },
+                      suitability: {}
+                    },
+                    ...classmates.map(c => ({
+                      id: c.id,
+                      name: c.name,
+                      isUser: false,
+                      applications: c.applications,
+                      suitability: c.suitability
+                    }))
+                  ];
+                  const roleCapacities = calculateDynamicCapacities(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
+
+                  return (
+                    <div className="stats-layout">
+                      {/* Stat Bars */}
+                      <div className="stats-charts-list">
+                        {rolePool.map(role => {
                           const roleStat = stats[role.id] || { first: 0, second: 0, third: 0, total: 0 };
                           const firstChoiceCount = roleStat.first;
                           const capacity = roleCapacities[role.id] !== undefined ? roleCapacities[role.id] : 1;
@@ -4444,301 +4722,10 @@ JSON 포맷:
                           }
 
                           return (
-                            <div key={role.id} className="stat-row-card-compact">
+                            <div key={role.id} className="stat-row-card">
                               <div className="stat-row-info">
                                 <div className="stat-role-title">
                                   <strong>{role.name}</strong> 
-                                  <span className={`status-badge ${statusColorClass}`}>{statusText}</span>
-                                </div>
-                                <span className="stat-count-text">
-                                  1지망: <strong>{firstChoiceCount}명</strong> / 정원: {capacity}명 (경쟁률 {compRate}:1)
-                                </span>
-                              </div>
-
-                              {/* Custom CSS Bar Chart */}
-                              <div className="progress-bar-track">
-                                <div 
-                                  className={`progress-bar-fill ${statusColorClass}`}
-                                  style={{ width: `${Math.min(100, (firstChoiceCount / Math.max(8, firstChoiceCount)) * 100)}%` }}
-                                />
-                                {/* Capacity indicator line */}
-                                <div 
-                                  className="capacity-marker"
-                                  style={{ left: `${(capacity / Math.max(8, firstChoiceCount)) * 100}%` }}
-                                  title="정원 기준선"
-                                />
-                              </div>
-                              
-                              {/* Peeking Area Toggle */}
-                              <div className="stat-peek-area">
-                                <details className="peek-details">
-                                  <summary className="peek-summary">👀 이 역할 지원자 한마디 보기</summary>
-                                  <div className="peek-content-list animate-slide-in">
-                                    {(() => {
-                                      const studentsApplied = allStudentsList.filter(s => s.applications.first === role.id);
-                                      return (
-                                        <>
-                                          {studentsApplied.map(st => {
-                                            const isMe = st.isUser;
-                                            const reason = getStudentReason(st, 'first');
-                                            return (
-                                              <div key={st.id} className={`peek-item ${isMe ? 'user-peek-item' : ''}`}>
-                                                <span className="peek-name">{isMe ? `✨ ${studentName} (나)` : `${st.name} (${st.gender === 'boy' ? '👦' : '👧'})`}</span>
-                                                <p className="peek-reason">"{reason || '이유를 작성하지 않았습니다.'}"</p>
-                                              </div>
-                                            );
-                                          })}
-                                          {studentsApplied.length === 0 && (
-                                            <p className="no-peek-text">이 역할에 1지망으로 지원한 친구가 아직 없습니다.</p>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                </details>
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                {renderStageFooter(6, () => handleStudentSubmitApplications(), !applications.first || !applicationReasons.first.trim(), '활동 제출하기 📤')}
-              </div>
-            )}
-
-            {/* STEP 7: ALLOCATION RUNNING ANIMATION */}
-            {step === 7 && (
-              <div className="stage-content animate-slide-in text-center-stage">
-                <h2 className="stage-title">🎲 공정하게 역할 배정 실행하기</h2>
-                <p className="stage-desc">우리의 선택지(지망 순위)와 각자 작성했던 역할 적합도 진단 점수를 합쳐서, 아리가 가장 공정한 분배를 시작합니다!</p>
-
-                {groupId && viewMode === 'student' ? (
-                  <div className="assigning-animation-box animate-pulse" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-                    <div className="chick-mascot-huge" style={{ fontSize: '4rem', marginBottom: '20px' }}>🐣✨</div>
-                    <h3 style={{ fontSize: '1.25rem', color: '#4f46e5', fontWeight: 'bold', marginBottom: '12px' }}>역할 배정 준비 중</h3>
-                    <p style={{ color: '#64748b', fontSize: '0.95rem', textAlign: 'center' }}>선생님께서 역할 배정을 진행 중이십니다. 매칭 결과가 발표될 때까지 잠시만 기다려 주세요! 🎲</p>
-                  </div>
-                ) : isAssigning ? (
-                  <div className="assigning-animation-box animate-pulse">
-                    <div className="assigning-wheel">
-                      ⚙️
-                    </div>
-                    <div className="scrolling-names-container">
-                      <p className="scrolling-name-item">민준이 배치 중...</p>
-                      <p className="scrolling-name-item">지우 적합도 검증 중...</p>
-                      <p className="scrolling-name-item">서현 선호도 확인 중...</p>
-                      <p className="scrolling-name-item">{studentName} 매칭 확인 중...</p>
-                    </div>
-                    <p className="assigning-text-status">🐣 아리가 공평하고 정밀하게 매칭 주사위를 굴리고 있어요! 🐣</p>
-                  </div>
-                ) : (
-                  <div className="ready-to-assign-box">
-                    <div className="chick-mascot-huge">
-                      🐣🎩
-                    </div>
-                    <button className="btn-execute-match" onClick={handleExecuteAllocation}>
-                      🎲 역할 배정 시뮬레이션 시작!
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* STEP 8: FINAL RESULT & CERTIFICATE / PLEDGE */}
-            {step === 8 && (
-              <div className="stage-content animate-slide-in print-wrapper">
-                <h2 className="stage-title no-print">🏆 최종 배정 결과 및 위촉식</h2>
-                <p className="stage-desc no-print">축하합니다! 모두가 한 학기 동안 소중하게 이끌어갈 학급 1인 1역할 배치도와 임명장입니다.</p>
-
-                {(() => {
-                  const assignedRoleId = assignments['user-student'];
-                  const role = rolePool.find(r => r.id === assignedRoleId);
-                  const detail = matchDetails['user-student'];
-                  
-                  let choiceRankKorean = '1지망';
-                  if (detail?.choiceRank === 'second') choiceRankKorean = '2지망';
-                  if (detail?.choiceRank === 'third') choiceRankKorean = '3지망';
-                  if (detail?.choiceRank === 'assigned_other') choiceRankKorean = '자율 배치';
-
-                  return (
-                    <div className="final-result-container">
-                      
-                      {/* 📜 CERTIFICATE CARD */}
-                      <div className="certificate-card" ref={printAreaRef}>
-                        <div className="cert-border-outer">
-                          <div className="cert-border-inner">
-                            <div className="cert-seal">🎖️</div>
-                            <h1 className="cert-main-title">임 명 장</h1>
-                            
-                            <div className="cert-info">
-                              <p className="cert-class">
-                                제 {studentGrade}학년 {studentClass}반
-                              </p>
-                              <p className="cert-name">
-                                이 름 : <strong>{studentName}</strong>
-                              </p>
-                              <p className="cert-role">
-                                임명역할 : <strong>{role ? role.name : '학급 도우미'}</strong> ({choiceRankKorean} 배정)
-                              </p>
-                            </div>
-
-                            <div className="cert-body-text">
-                              위 사람은 성실한 태도와 교실을 사랑하는 마음으로 학급 문제 해결에 앞장섰기에, 한 학기 동안 학급을 기분 좋게 가꿀 <strong>{role ? role.name : '학급 도우미'}</strong>(으)로 기쁘게 임명합니다.
-                            </div>
-
-                            <div className="cert-date">
-                              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </div>
-
-                            <div className="cert-issuer">
-                              {studentGrade}학년 {studentClass}반 AI 조수 아리 & 담임교사 백
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ACTION BUTTON FOR CERTIFICATE */}
-                      <div className="cert-actions no-print" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <button className="btn-print-cert" onClick={handlePrint}>
-                          <Printer size={18} /> 내 임명장 인쇄하기
-                        </button>
-                        {hasModified && (
-                          <span className="badge-modified-info" style={{ 
-                            fontSize: '0.8rem', 
-                            background: '#e0e7ff', 
-                            color: '#4f46e5', 
-                            padding: '6px 12px', 
-                            borderRadius: '12px', 
-                            fontWeight: 'bold' 
-                          }}>
-                            🔄 지망 수정 완료
-                          </span>
-                        )}
-                      </div>
-
-                      {/* ✍️ PLEDGE SECTION */}
-                      <div className="pledge-section">
-                        <h3>🪴 나의 다짐 약속 적기</h3>
-                        <p className="no-print">이 역할을 멋지게 수행하기 위해 지킬 다짐을 한마디 적어줘!</p>
-                        
-                        <div className="pledge-form-group">
-                          <input
-                            type="text"
-                            className="cute-pledge-input"
-                            value={pledge}
-                            onChange={(e) => setPledge(e.target.value)}
-                            placeholder="예: 매일 수업 끝나고 칠판을 뽀드득 소리가 나게 깨끗이 닦겠습니다!"
-                          />
-                          {pledge && (
-                            <div className="pledge-signature animate-slide-in">
-                              <Heart size={16} className="heart-icon" /> <strong>{studentName}</strong> 약속함
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 💡 NOTICE CARD FOR ROLE SWAP */}
-                      <div className="alert-box-info no-print" style={{ margin: '20px 0', background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a' }}>
-                        <AlertCircle size={18} />
-                        <span>💡 <strong>역할을 바꾸고 싶나요?</strong> 친구와 동의한 후 선생님께 말씀드려보세요! 선생님께서 교사 관리 탭에서 역할을 맞바꿔 주실 수 있습니다.</span>
-                      </div>
-
-                      {/* 🏫 CLASSROOM ROLE PLACEMENT BOARD */}
-                      <div className="class-placement-board">
-                        <h3 className="placement-board-title">🏫 우리 반 1인 1역할 최종 배치표</h3>
-                        <div className="placement-grid">
-                          {rolePool.map(r => {
-                            const assignedToThisRole: string[] = [];
-                            
-                            // Check user
-                            if (assignments['user-student'] === r.id) {
-                              assignedToThisRole.push(studentName + ' ⭐');
-                            }
-
-                            // Check classmates
-                            classmates.forEach(c => {
-                              if (assignments[c.id] === r.id) {
-                                assignedToThisRole.push(c.name);
-                              }
-                            });
-
-                            return (
-                              <div key={r.id} className="placement-card">
-                                <h4>
-                                  {r.name}{' '}
-                                  <span className="placement-capacity-tag" style={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'normal',
-                                    color: '#6b7280',
-                                    marginLeft: '4px'
-                                  }}>
-                                    ({assignedToThisRole.length}/{assignmentsCapacities[r.id] !== undefined ? assignmentsCapacities[r.id] : 1}명)
-                                  </span>
-                                </h4>
-                                <p className="placement-job-desc">{r.job}</p>
-                                <div className="placement-names-list">
-                                  {assignedToThisRole.map((name, nIdx) => (
-                                    <span 
-                                      key={nIdx} 
-                                      className={`placement-name-tag ${name.includes('⭐') ? 'user-tag animate-pulse-btn' : ''}`}
-                                    >
-                                      {name}
-                                    </span>
-                                  ))}
-                                  {assignedToThisRole.length === 0 && (
-                                    <span className="empty-tag">빈자리 🍃</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* 📋 FINAL REPORT TABLE (Only visible when printing all or explicitly) */}
-                      <div className="final-report-table-wrapper" style={{ marginTop: '32px' }}>
-                        <h3 className="placement-board-title" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>📋 우리 반 역할 배정 및 다짐 서약서</h3>
-                        <table className="teacher-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
-                          <thead>
-                            <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e0' }}>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>이름</th>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>역할</th>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>나의 다짐 한마디 🤝</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {getFinalReportData().map((item, idx) => (
-                              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.name}</td>
-                                <td style={{ padding: '12px' }}>
-                                  <span className="assigned-role-badge" style={{ display: 'inline-block' }}>{item.roleName}</span>
-                                </td>
-                                <td style={{ padding: '12px', fontStyle: 'italic', color: '#475569' }}>{item.pledge}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {isPrintingAll && (
-                        <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }} className="no-print">
-                          인쇄 모드가 준비되었습니다.
-                        </div>
-                      )}
-
-                      {/* START OVER */}
-                      <div className="reset-area no-print">
-                        <button className="btn-reset" onClick={handleReset}>
-                          <RotateCcw size={16} /> 처음부터 다시 역할 선정하기
-                        </button>
-                      </div>
-
-                    </div>
-                  );
-                })()}ong>{role.name}</strong> 
                                   <span className={`status-badge ${statusColorClass}`}>{statusText}</span>
                                 </div>
                                 <span className="stat-count-text">
