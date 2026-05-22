@@ -171,7 +171,6 @@ export const RoleFlow = () => {
   // Voting states
   const [roleVotes, setRoleVotes] = useState<Record<string, number>>({});
   const [userVotes, setUserVotes] = useState<string[]>([]);
-  const [isSimulatingVotes, setIsSimulatingVotes] = useState(false);
   const [hasVotedSimulated, setHasVotedSimulated] = useState(false);
 
   // Teacher Swap state
@@ -233,6 +232,14 @@ export const RoleFlow = () => {
     second: [],
     third: []
   });
+
+  // Student custom role states in Step 3
+  const [isSuggestingNames, setIsSuggestingNames] = useState(false);
+  const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
+  const [studentCustomJob, setStudentCustomJob] = useState('');
+  const [studentCustomProblem, setStudentCustomProblem] = useState('trash');
+  const [studentCustomName, setStudentCustomName] = useState('');
+  const [showStudentAddCustom, setShowStudentAddCustom] = useState(false);
 
   // Reset submit status on step change
   useEffect(() => {
@@ -656,8 +663,8 @@ export const RoleFlow = () => {
       }
     }
     if (step === 4) {
-      if (!hasVotedSimulated) {
-        alert('먼저 투표 결과를 확인하거나 친구들 투표 시뮬레이션을 완료해주세요!');
+      if (rolePool.length < 4) {
+        alert('최소 4개 이상의 역할이 투표에 참여해야 다음 단계로 넘어갈 수 있습니다!');
         return;
       }
     }
@@ -820,14 +827,16 @@ export const RoleFlow = () => {
       const systemPrompt = `당신은 초등학교 3~4학년 학급 경영을 돕는 친절한 AI 조수 '아리'입니다.
 학생들이 선택한 학급 문제점들을 해결하기 위한 귀엽고 창의적인 1인 1역할을 5~6개 추천해주세요.
 각 역할은 반드시 전달된 문제 중 하나와 매칭되어야 합니다.
+초등학교 3학년이 읽고 바로 이해할 수 있도록 문장을 아주 간결하고 짧게(한 문장 15자 내외, 총 2문장 이하) 작성해주세요.
+'job'(할 일)과 'reason'(필요한 이유)도 아주 직관적이고 쉬운 단어로 요약해주세요.
 반드시 아래 JSON 배열 형식으로만 응답하며, 앞뒤에 다른 말이나 \`\`\`json 기호를 포함하지 말아주세요.
 JSON 포맷:
 [
   {
     "problemId": "매칭되는 문제의 ID (전달받은 고민 ID 목록 중 하나)",
-    "name": "역할 이름 (예: 칠판 지우개 요정, 도서관 박사)",
-    "job": "어린이가 알아듣기 쉬운 말로, 매일 실천할 구체적인 활동 내용",
-    "reason": "왜 이 역할이 교실에 필요한지 어린이가 납득할 수 있는 친근한 필요성 이유"
+    "name": "역할 이름 (예: 칠판 요정, 책꽂이 박사)",
+    "job": "초3 수준으로 간결하고 직관적으로 쓸 것 (예: 매일 칠판을 깨끗이 닦아요)",
+    "reason": "초3 수준으로 아주 쉬운 필요성 (예: 선생님의 칠판 청소를 도와드려요)"
   }
 ]`;
       const messages = [
@@ -867,6 +876,104 @@ JSON 포맷:
     }
   };
 
+  // Suggest 3 child-friendly role names based on custom job using AI
+  const handleSuggestRoleNameAI = async (problemId: string, jobText: string) => {
+    if (!jobText.trim()) {
+      alert('하는 일을 구체적으로 적어주세요!');
+      return;
+    }
+    setIsSuggestingNames(true);
+    setSuggestedNames([]);
+
+    const prob = PROBLEM_LIST.find(p => p.id === problemId) || customProblemsList.find(p => p.id === problemId) || { title: '교실 고민' };
+
+    try {
+      const systemPrompt = `당신은 초등학교 3~4학년 학급 경영을 돕는 친절한 AI 조수 '아리'입니다.
+학생들이 교실 고민('${prob.title}')을 해결하기 위해 제안한 구체적인 활동 내용('${jobText}')에 가장 어울리고 귀여운 초등학교 3학년 맞춤형 역할 이름 3개를 지어주세요.
+각 역할 이름은 2~6글자 내외의 짧고 귀여운 명칭(예: 칠판 화가, 분리수거 대장, 뽀드득 요정 등)이어야 하며, 이모지(예: 🎨, 🗑️, 🧼)를 하나씩 꼭 포함해야 합니다.
+반드시 다른 설명 없이 아래 JSON 배열 포맷으로만 응답해주세요. 앞뒤에 다른 말이나 \`\`\`json 기호를 포함하지 말아주세요.
+JSON 포맷:
+[
+  "추천 이름 1",
+  "추천 이름 2",
+  "추천 이름 3"
+]`;
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `해결하려는 고민: ${prob.title}, 구체적인 할 일: ${jobText}` }
+      ];
+
+      const res = await sendMessageToAPI(messages as any);
+      let cleaned = res.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '').trim();
+      }
+
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setSuggestedNames(parsed);
+      } else {
+        throw new Error('Not a valid array');
+      }
+    } catch (error) {
+      console.error('AI Role Name Suggestion Error:', error);
+      setSuggestedNames(['아리 도우미 🐥', '반짝 해결사 ✨', '행복 지킴이 💖']);
+    } finally {
+      setIsSuggestingNames(false);
+    }
+  };
+
+  const handleStudentSuggestRole = async (name: string, job: string, problemId: string) => {
+    if (!name.trim()) {
+      alert('역할 이름을 적어주세요!');
+      return;
+    }
+    if (!job.trim()) {
+      alert('하는 일을 구체적으로 적어주세요!');
+      return;
+    }
+
+    const newRole: Role = {
+      id: `student-role-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: name.trim(),
+      job: job.trim(),
+      reason: '우리 교실의 편리함과 행복을 위해서입니다.',
+      problemId: problemId,
+      recommendedBy: studentName || '학생 해결사',
+      votes: 0,
+      capacity: 1,
+      isCustom: true
+    };
+
+    setRolePool(prev => {
+      if (prev.some(r => r.name === newRole.name)) {
+        alert('이미 같은 이름의 역할이 존재합니다!');
+        return prev;
+      }
+      return [...prev, newRole];
+    });
+
+    setStudentCustomName('');
+    setStudentCustomJob('');
+    setSuggestedNames([]);
+    setShowStudentAddCustom(false);
+
+    if (groupId) {
+      try {
+        await fetch(`/api/sync?group=${encodeURIComponent(groupId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'suggest_role',
+            state: { role: newRole }
+          })
+        });
+      } catch (e) {
+        console.error('Error syncing student custom role:', e);
+      }
+    }
+  };
+
   // Merge similar roles using AI
   const handleMergeRolesAI = async () => {
     if (rolePool.length < 2) {
@@ -898,14 +1005,16 @@ JSON 포맷:
       const systemPrompt = `당신은 초등학교 학급 역할을 정돈하는 친절한 AI 조수 '아리'입니다.
 현재 학급 역할 목록을 분석하여, 지나치게 이름이나 하는 일(역할)이 중복되거나 유사한 역할들을 찾아 하나로 통합하고 깔끔하게 정리해주세요.
 서로 다른 고민을 해결하는 고유한 역할들은 그대로 유지하되, 너무 비슷한 역할(예: '칠판 지우개 천사'와 '칠판 뽀드득 요정')은 더 어울리는 창의적이고 대표적인 이름과 명확한 설명으로 하나로 합쳐야 합니다.
+초등학교 3학년이 읽고 바로 이해할 수 있도록 문장을 아주 간결하고 짧게(한 문장 15자 내외, 총 2문장 이하) 작성해주세요.
+'job'(할 일)과 'reason'(필요한 이유)도 아주 직관적이고 쉬운 단어로 요약해주세요.
 통합 완료 후 정돈된 학급 역할 목록을 반드시 아래 JSON 배열 형식으로만 응답하고, 앞뒤에 다른 설명이나 \`\`\`json 기호를 일절 포함하지 마세요.
 최소 4개 이상의 역할이 유지되도록 해주세요.
 JSON 포맷:
 [
   {
     "name": "정돈된 역할 이름",
-    "job": "수행할 구체적이고 다정한 업무 설명",
-    "reason": "해당 역할의 필요성 및 이유",
+    "job": "초3 수준으로 매우 간결하게 쓴 업무 설명",
+    "reason": "초3 수준으로 아주 쉬운 필요성 이유",
     "problemId": "매칭되는 문제의 ID",
     "recommendedBy": "최초 제안자 정보 (예: 'AI 아리' 또는 학생 이름. 통합된 경우 'AI 아리(통합)' 혹은 '합동 제안' 등으로 예쁘게 표기)"
   }
@@ -1012,30 +1121,7 @@ JSON 포맷:
     });
   };
 
-  // Step 4: Simulate Classmate Votes
-  const handleSimulateClassmateVotes = () => {
-    setIsSimulatingVotes(true);
-    
-    const newVotes: Record<string, number> = {};
-    rolePool.forEach(r => {
-      newVotes[r.id] = userVotes.includes(r.id) ? 1 : 0;
-    });
-
-    setTimeout(() => {
-      for (let i = 0; i < classmateCount; i++) {
-        const voteCount = Math.floor(Math.random() * 2) + 2; // 2 or 3 votes
-        const shuffled = [...rolePool].sort(() => 0.5 - Math.random());
-        const selected = shuffled.slice(0, voteCount);
-        selected.forEach(r => {
-          newVotes[r.id] = (newVotes[r.id] || 0) + 1;
-        });
-      }
-      
-      setRoleVotes(newVotes);
-      setIsSimulatingVotes(false);
-      setHasVotedSimulated(true);
-    }, 1500);
-  };
+  // Step 4: Simulate classmate votes removed from direct button click
 
   // Step 4: AI generate extra roles up to classmateCount + 1
   const handleGenerateExtraRolesAI = async (targetCount: number) => {
@@ -1062,14 +1148,16 @@ JSON 포맷:
       const systemPrompt = `당신은 초등학교 학급 경영을 돕는 친절한 AI 조수 '아리'입니다.
 우리 반의 총원인 ${targetCount}명에 맞추기 위해, 현재 존재하는 역할들과 중복되지 않는 새로운 역할을 추가로 ${needed}개 생성해주세요.
 각 역할은 우리 반의 고민 목록과 관련되어야 하며, 매우 창의적이고 귀엽고 실천 가능한 것이어야 합니다.
+초등학교 3학년이 읽고 바로 이해할 수 있도록 문장을 아주 간결하고 짧게(한 문장 15자 내외, 총 2문장 이하) 작성해주세요.
+'job'(할 일)과 'reason'(필요한 이유)도 아주 직관적이고 쉬운 단어로 요약해주세요.
 반드시 아래 JSON 배열 형식으로만 응답하며, 앞뒤에 다른 설명이나 \`\`\`json 기호를 포함하지 마세요.
 JSON 포맷:
 [
   {
     "problemId": "매칭되는 문제의 ID (전달받은 고민 ID 목록 중 하나)",
-    "name": "창의적인 새로운 역할 이름",
-    "job": "어린이가 하기 쉬운 구체적인 실천 일",
-    "reason": "이 역할이 교실에 필요한 다정하고 유용한 이유"
+    "name": "창의적인 새로운 역할 이름 (예: 분리수거 대장, 빗자루 요정)",
+    "job": "초3 수준으로 매우 간결하게 쓴 할 일",
+    "reason": "초3 수준으로 아주 쉬운 필요성 이유"
   }
 ]`;
 
@@ -1185,8 +1273,8 @@ JSON 포맷:
 
   // Step 4 finalization
   const handleFinishVoting = async () => {
-    if (!hasVotedSimulated) {
-      alert('먼저 친구들 투표 시뮬레이션을 실행해주세요!');
+    if (rolePool.length < 4) {
+      alert('최소 4개 이상의 역할이 투표에 참여해야 다음 단계로 넘어갈 수 있습니다!');
       return;
     }
 
@@ -1205,16 +1293,18 @@ JSON 포맷:
       }
     }
 
-    const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, roleVotes);
+    const finalVotes = getCurrentRoleVotes();
+    const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, finalVotes);
     
     setCustomCapacity(distributedCaps);
     setIsAutoCapacity(false);
+    setHasVotedSimulated(true);
     
     setRolePool(prevPool => {
       const poolToUse = currentPool.length > prevPool.length ? currentPool : prevPool;
       return poolToUse.map(r => ({
         ...r,
-        votes: roleVotes[r.id] || 0,
+        votes: finalVotes[r.id] || 0,
         capacity: distributedCaps[r.id] !== undefined ? distributedCaps[r.id] : 1
       }));
     });
@@ -1763,38 +1853,48 @@ JSON 포맷:
     if (groupId) {
       setIsSubmittedForStep(true);
     } else {
-      if (hasVotedSimulated) {
-        handleFinishVoting();
-      } else {
-        const newVotes: Record<string, number> = {};
-        rolePool.forEach(r => {
-          newVotes[r.id] = userVotes.includes(r.id) ? 1 : 0;
+      const newVotes: Record<string, number> = {};
+      rolePool.forEach(r => {
+        newVotes[r.id] = userVotes.includes(r.id) ? 1 : 0;
+      });
+      for (let i = 0; i < classmateCount; i++) {
+        const voteCount = Math.floor(Math.random() * 2) + 2;
+        const shuffled = [...rolePool].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, voteCount);
+        selected.forEach(r => {
+          newVotes[r.id] = (newVotes[r.id] || 0) + 1;
         });
-        for (let i = 0; i < classmateCount; i++) {
-          const voteCount = Math.floor(Math.random() * 2) + 2;
-          const shuffled = [...rolePool].sort(() => 0.5 - Math.random());
-          const selected = shuffled.slice(0, voteCount);
-          selected.forEach(r => {
-            newVotes[r.id] = (newVotes[r.id] || 0) + 1;
-          });
-        }
-        setRoleVotes(newVotes);
-        setHasVotedSimulated(true);
-
-        const totalStudents = classmateCount + 1;
-        const currentPool = [...rolePool];
-        const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, newVotes);
-        setCustomCapacity(distributedCaps);
-        setIsAutoCapacity(false);
-        setRolePool(prevPool => {
-          return prevPool.map(r => ({
-            ...r,
-            votes: newVotes[r.id] || 0,
-            capacity: distributedCaps[r.id] !== undefined ? distributedCaps[r.id] : 1
-          }));
-        });
-        nextStep();
       }
+      setRoleVotes(newVotes);
+      setHasVotedSimulated(true);
+
+      const totalStudents = classmateCount + 1;
+      let currentPool = [...rolePool];
+
+      if (currentPool.length < totalStudents) {
+        const confirmGenerate = window.confirm(
+          `현재 생성된 역할 개수(${currentPool.length}개)가 우리 반 인원수(${totalStudents}명)보다 적습니다.\nAI 추천으로 부족한 역할을 자동 생성하여 인원수를 맞출까요?`
+        );
+        if (confirmGenerate) {
+          const updatedPool = await handleGenerateExtraRolesAI(totalStudents);
+          if (updatedPool) {
+            currentPool = updatedPool;
+          }
+        }
+      }
+
+      const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, newVotes);
+      setCustomCapacity(distributedCaps);
+      setIsAutoCapacity(false);
+      setRolePool(prevPool => {
+        const poolToUse = currentPool.length > prevPool.length ? currentPool : prevPool;
+        return poolToUse.map(r => ({
+          ...r,
+          votes: newVotes[r.id] || 0,
+          capacity: distributedCaps[r.id] !== undefined ? distributedCaps[r.id] : 1
+        }));
+      });
+      nextStep();
     }
   };
 
@@ -2194,19 +2294,10 @@ JSON 포맷:
 
                 {step === 4 && (
                   <div>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🗳️ 4단계 투표 시뮬레이션 및 마감 도구</h4>
-                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>가상 학생들의 투표를 추가해 학급 전체의 투표 분산을 만들거나 투표를 강제로 마감할 수 있습니다.</p>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🗳️ 4단계 투표 마감 관리</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>학생들이 투표를 마치면 투표를 완료하고 다음 단계로 진행합니다. 역할이 부족한 경우 AI 추천으로 채울 수 있습니다.</p>
                     
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn-simulate-votes"
-                        onClick={handleSimulateClassmateVotes}
-                        disabled={isSimulatingVotes}
-                      >
-                        {isSimulatingVotes ? '🗳️ 가상 투표 진행 중...' : '🔄 가상 친구들 투표 시뮬레이션'}
-                      </button>
-
                       {rolePool.length < classmateCount + 1 && (
                         <button
                           type="button"
@@ -2231,7 +2322,7 @@ JSON 포맷:
                         type="button"
                         className="btn-finish-voting"
                         onClick={handleFinishVoting}
-                        disabled={!hasVotedSimulated}
+                        disabled={rolePool.length < 4}
                         style={{
                           padding: '10px 16px',
                           background: '#4f46e5',
@@ -2239,8 +2330,8 @@ JSON 포맷:
                           border: 'none',
                           borderRadius: '12px',
                           fontWeight: 'bold',
-                          cursor: hasVotedSimulated ? 'pointer' : 'not-allowed',
-                          opacity: hasVotedSimulated ? 1 : 0.6
+                          cursor: rolePool.length >= 4 ? 'pointer' : 'not-allowed',
+                          opacity: rolePool.length >= 4 ? 1 : 0.6
                         }}
                       >
                         투표 마감하고 다음 단계로
@@ -3033,7 +3124,182 @@ JSON 포맷:
                 )}
 
                 {/* Add Custom Role Section */}
-                {!(groupId && viewMode === 'student') && (
+                {groupId && viewMode === 'student' ? (
+                  <div className="student-role-assist-container" style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    
+                    {/* 1. AI 추천 역할 중 내가 마음에 드는 것 골라 추천하기 */}
+                    <div className="student-preset-recommendations" style={{ background: '#f0fdf4', padding: '16px', borderRadius: '16px', border: '1px solid #bbf7d0' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#16a34a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        💡 <span>아리의 아이디어 상자</span>
+                      </h4>
+                      <p style={{ fontSize: '0.85rem', color: '#15803d', marginBottom: '12px' }}>아리가 미리 준비한 역할들이에요. 우리 반에 꼭 필요한 역할이라고 생각하면 버튼을 눌러 제안해 보세요!</p>
+                      
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {(() => {
+                          const activeProblemIds = selectedProblems.length > 0 ? selectedProblems : ['trash', 'lights', 'floor'];
+                          const candidates: { name: string; job: string; reason: string; problemId: string }[] = [];
+                          activeProblemIds.forEach(probId => {
+                            const presets = DEFAULT_ROLES_MAP[probId] || [];
+                            presets.forEach(p => {
+                              if (!rolePool.some(r => r.name === p.name)) {
+                                candidates.push({ ...p, problemId: probId });
+                              }
+                            });
+                          });
+
+                          if (candidates.length === 0) {
+                            return <p style={{ fontSize: '0.8rem', color: '#15803d', fontStyle: 'italic' }}>추천할 만한 기본 역할이 모두 추가되어 있습니다! 새로운 역할을 아래에서 직접 만들어 보세요. ✨</p>;
+                          }
+
+                          return candidates.slice(0, 4).map((c, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              className="btn-preset-suggest"
+                              style={{
+                                background: '#ffffff',
+                                border: '1px solid #bbf7d0',
+                                padding: '8px 12px',
+                                borderRadius: '12px',
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                color: '#16a34a',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s'
+                              }}
+                              onClick={() => handleStudentSuggestRole(c.name, c.job, c.problemId)}
+                            >
+                              ➕ {c.name}
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* 2. 직접 역할 새로 만들기 + AI 이름 추천 */}
+                    <div className="student-custom-builder" style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#4f46e5', marginBottom: '8px' }}>🔨 우리가 직접 만드는 새로운 역할</h4>
+                      <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>교실을 위해 필요한 일을 생각해서 새로운 역할을 직접 만들 수 있어요!</p>
+                      
+                      {!showStudentAddCustom ? (
+                        <button
+                          type="button"
+                          className="btn-add-custom-toggle"
+                          style={{ width: '100%' }}
+                          onClick={() => setShowStudentAddCustom(true)}
+                        >
+                          <Plus size={16} /> 새로운 역할 직접 제안하기
+                        </button>
+                      ) : (
+                        <div className="custom-role-form animate-slide-in">
+                          
+                          {/* 어떤 고민을 해결할까요 */}
+                          <div className="form-group-sm">
+                            <label>어떤 고민을 해결하고 싶나요?</label>
+                            <select
+                              className="cute-select"
+                              value={studentCustomProblem}
+                              onChange={e => setStudentCustomProblem(e.target.value)}
+                            >
+                              {(selectedProblems.length > 0 ? selectedProblems : ['trash', 'lights', 'floor']).map(probId => {
+                                const prob = getProblemInfo(probId);
+                                return (
+                                  <option key={probId} value={probId}>{prob.emoji} {prob.title}</option>
+                                );
+                              })}
+                            </select>
+                          </div>
+
+                          {/* 하는 구체적인 일 */}
+                          <div className="form-group-sm">
+                            <label>하는 구체적인 일</label>
+                            <textarea
+                              value={studentCustomJob}
+                              onChange={e => setStudentCustomJob(e.target.value)}
+                              placeholder="이 역할이 교실에서 해야 하는 일을 아주 쉽게 적어주세요. (예: 칠판을 쉬는 시간마다 깨끗이 지워요)"
+                              maxLength={100}
+                              rows={2}
+                            />
+                          </div>
+
+                          {/* 역할 이름 + AI 추천 받기 */}
+                          <div className="form-group-sm" style={{ position: 'relative' }}>
+                            <label>역할 이름</label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <input
+                                type="text"
+                                value={studentCustomName}
+                                onChange={e => setStudentCustomName(e.target.value)}
+                                placeholder="이름을 적거나, 오른쪽 AI 버튼을 눌러 추천받으세요!"
+                                maxLength={15}
+                                style={{ flex: 1 }}
+                              />
+                              <button
+                                type="button"
+                                className="btn-ai-action"
+                                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
+                                disabled={isSuggestingNames || !studentCustomJob.trim()}
+                                onClick={() => handleSuggestRoleNameAI(studentCustomProblem, studentCustomJob)}
+                              >
+                                {isSuggestingNames ? <RefreshCw className="spinning-icon" size={14} /> : <span>🪄 AI 이름 추천</span>}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* AI 추천 이름 결과 pill들 */}
+                          {suggestedNames.length > 0 && (
+                            <div className="ai-suggested-names-list animate-slide-in" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px', background: '#eeebff', padding: '10px', borderRadius: '12px' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 'bold', width: '100%' }}>아리가 제안하는 역할 이름 (클릭하면 쏙 들어갑니다):</span>
+                              {suggestedNames.map((name, nIdx) => (
+                                <button
+                                  key={nIdx}
+                                  type="button"
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #4f46e5',
+                                    padding: '6px 10px',
+                                    borderRadius: '10px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    color: '#4f46e5',
+                                    fontWeight: 'bold'
+                                  }}
+                                  onClick={() => setStudentCustomName(name)}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="form-actions-sm" style={{ marginTop: '16px' }}>
+                            <button
+                              type="button"
+                              className="btn-submit-custom"
+                              disabled={!studentCustomName.trim() || !studentCustomJob.trim()}
+                              onClick={() => handleStudentSuggestRole(studentCustomName, studentCustomJob, studentCustomProblem)}
+                            >
+                              우리 반 역할로 추가하기 ➕
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-cancel-custom"
+                              onClick={() => {
+                                setShowStudentAddCustom(false);
+                                setSuggestedNames([]);
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                   <div className="custom-role-builder" style={{ marginTop: '24px' }}>
                     {!showAddCustomRole ? (
                       <button 
@@ -3116,11 +3382,19 @@ JSON 포맷:
                         <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`}>
                           <div className="vote-card-header">
                             <span className="vote-card-category">{prob.emoji} {prob.title.substring(0, 10)}...</span>
-                            <span className="vote-card-recommended">제안: {role.recommendedBy || 'AI'}</span>
+                            <span className="vote-card-recommended">👤 제안: {role.recommendedBy || 'AI 아리'}</span>
                           </div>
-                          <h3>{role.name}</h3>
-                          <p className="vote-card-job"><strong>할 일:</strong> {role.job}</p>
-                          <p className="vote-card-reason"><strong>필요성:</strong> {role.reason}</p>
+                          <h3 className="vote-card-title">{role.name}</h3>
+                          
+                          <div className="vote-card-detail-box job-box">
+                            <span className="detail-box-label">📋 해야 할 일</span>
+                            <p className="detail-box-text">{role.job}</p>
+                          </div>
+                          
+                          <div className="vote-card-detail-box reason-box">
+                            <span className="detail-box-label">💡 필요한 이유</span>
+                            <p className="detail-box-text">{role.reason}</p>
+                          </div>
                           
                           <div className="vote-card-footer">
                             <button
@@ -3138,7 +3412,7 @@ JSON 포맷:
                     })}
                   </div>
 
-                  {/* Right: Vote Status and Simulation Panel */}
+                  {/* Right: Vote Status and Control Panel */}
                   {!(groupId && viewMode === 'student') && (
                     <div className="vote-status-box">
                       <h3>🗳️ 투표 진행판</h3>
@@ -3150,15 +3424,6 @@ JSON 포맷:
                           ⚠️ 역할 후보 개수가 총원({classmateCount + 1}명)보다 적습니다. 배정 시 인원 비례로 정원이 자동 조정되지만, 역할을 더 늘리고 싶다면 아래 AI 버튼을 눌러보세요.
                         </div>
                       )}
-
-                      <button
-                        type="button"
-                        className="btn-simulate-votes"
-                        onClick={handleSimulateClassmateVotes}
-                        disabled={isSimulatingVotes}
-                      >
-                        {isSimulatingVotes ? '🗳️ 가상 투표 진행 중...' : '🔄 가상 친구들 투표 시뮬레이션'}
-                      </button>
 
                       {rolePool.length < classmateCount + 1 && (
                         <button
@@ -3174,7 +3439,8 @@ JSON 포맷:
                             border: '1.5px dashed #1a73e8',
                             borderRadius: '8px',
                             fontWeight: 'bold',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            width: '100%'
                           }}
                         >
                           {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
@@ -3200,7 +3466,7 @@ JSON 포맷:
                         type="button"
                         className="btn-finish-voting"
                         onClick={handleFinishVoting}
-                        disabled={!hasVotedSimulated}
+                        disabled={rolePool.length < 4}
                         style={{
                           marginTop: '12px',
                           padding: '12px',
@@ -3209,8 +3475,9 @@ JSON 포맷:
                           border: 'none',
                           borderRadius: '8px',
                           fontWeight: 'bold',
-                          cursor: hasVotedSimulated ? 'pointer' : 'not-allowed',
-                          opacity: hasVotedSimulated ? 1 : 0.6
+                          cursor: rolePool.length >= 4 ? 'pointer' : 'not-allowed',
+                          opacity: rolePool.length >= 4 ? 1 : 0.6,
+                          width: '100%'
                         }}
                       >
                         투표 마감하고 다음 단계로

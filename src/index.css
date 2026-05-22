@@ -2620,18 +2620,27 @@ body {
   background: white;
   border: 2px solid #e2e8f0;
   border-radius: var(--border-radius-md);
-  padding: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.vote-role-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
 }
 
 .vote-role-card.voted {
   border-color: var(--secondary-color);
-  background: #fff0f6;
+  background: #fff5f7;
   transform: translateY(-2px);
+  box-shadow: 0 8px 16px -4px rgba(244, 63, 94, 0.12);
 }
 
 .vote-card-header {
@@ -2644,24 +2653,64 @@ body {
 .vote-card-category {
   background: var(--primary-light);
   color: var(--primary-color);
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 8px;
   font-weight: 700;
 }
 
 .vote-card-recommended {
   color: var(--text-muted);
+  font-weight: 500;
 }
 
-.vote-role-card h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
+.vote-role-card h3.vote-card-title {
+  font-size: 1.2rem;
+  font-weight: 800;
   color: var(--text-main);
+  margin: 4px 0 2px 0;
 }
 
-.vote-card-job,
-.vote-card-reason {
-  font-size: 0.8rem;
+/* 🎨 Redesigned Child-friendly Detail Boxes */
+.vote-card-detail-box {
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 2px;
+}
+
+.vote-card-detail-box.job-box {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.vote-card-detail-box.reason-box {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.detail-box-label {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.job-box .detail-box-label {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.reason-box .detail-box-label {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.detail-box-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  margin: 0;
   line-height: 1.4;
 }
 
@@ -2844,16 +2893,94 @@ body {
     display: none !important;
   }
 
-  /* Teacher printing all: print only placement board and table */
-  .printing-all .certificate-card {
+  /* Teacher printing all: print ONLY placement board as a landscape poster, hide table */
+  body.printing-all {
+    background: white !important;
+  }
+
+  .printing-all .nav-header,
+  .printing-all .stage-indicator,
+  .printing-all .stage-footer,
+  .printing-all .no-print,
+  .printing-all button,
+  .printing-all .dashboard-panel,
+  .printing-all .alert-box-info,
+  .printing-all .certificate-card,
+  .printing-all .pledge-section,
+  .printing-all .final-report-table-wrapper,
+  .printing-all .reset-area {
     display: none !important;
   }
-  .printing-all .pledge-section {
-    display: none !important;
-  }
-  .printing-all .class-placement-board,
-  .printing-all .final-report-table-wrapper {
+
+  .printing-all .class-placement-board {
     display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .printing-all .placement-board-title {
+    font-size: 2.2rem !important;
+    color: #4f46e5 !important;
+    margin-top: 10px !important;
+    margin-bottom: 24px !important;
+    text-align: center !important;
+    font-family: 'Outfit', 'Inter', sans-serif !important;
+    font-weight: 800 !important;
+  }
+
+  .printing-all .placement-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  .printing-all .placement-card {
+    background: white !important;
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    padding: 14px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .printing-all .placement-card h4 {
+    font-size: 1.1rem !important;
+    color: #4f46e5 !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .printing-all .placement-job-desc {
+    font-size: 0.8rem !important;
+    color: #475569 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .printing-all .placement-name-tag {
+    font-size: 0.95rem !important;
+    padding: 4px 10px !important;
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+    border-radius: 6px !important;
+    font-weight: bold !important;
+  }
+
+  .printing-all .placement-name-tag.user-tag {
+    background: #fdf2f8 !important;
+    border-color: #fbcfe8 !important;
+    color: #db2777 !important;
+  }
+
+  @page {
+    size: landscape;
+    margin: 10mm;
   }
 }
 

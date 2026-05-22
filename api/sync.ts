@@ -103,6 +103,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...state,
         students: state.students !== undefined ? state.students : groupState.students
       };
+    } else if (action === 'suggest_role' && state?.role) {
+      // Student suggests a new role
+      const newRole = state.role;
+      if (!Array.isArray(groupState.rolePool)) {
+        groupState.rolePool = [];
+      }
+      if (!groupState.rolePool.some((r: any) => r.id === newRole.id)) {
+        groupState.rolePool.push(newRole);
+      }
     } else if (action === 'submit_student' && student) {
       // Student joins/updates profile or applications or pledges
       const sId = student.id;
