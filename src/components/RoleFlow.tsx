@@ -3,7 +3,8 @@ import {
   Sparkles, CheckCircle2, Compass, FileText, BarChart3, 
   RefreshCw, Award, ChevronRight, ChevronLeft, User, 
   Smile, Meh, Frown, Plus, Trash2, AlertCircle, Check, 
-  RotateCcw, Printer, Heart, Volume2, Search, MessageSquare
+  RotateCcw, Printer, Heart, Volume2, Search, MessageSquare,
+  Lock, Eye, EyeOff
 } from 'lucide-react';
 import { sendMessageToAPI } from '../api/chat';
 import { generateClassmates } from '../utils/simulatedData';
@@ -110,6 +111,28 @@ const APPLICATION_KEYWORDS = [
   '책임감 🎯', '성실함 📅', '친절함 🤝', '도전정신 🏃', '꼭 해보고 싶어요 ❤️', '도움이 되고 싶어요 🙋', '깨끗하게 만들게요 🧹', '정리왕이 될게요 📦', '약속을 잘 지켜요 🤙'
 ];
 
+const RIDDLE_QUESTIONS = [
+  { q: 'ㅂㄹㅅㄱ', hint: '쓰레기를 종류별로 나누어 담아 버리는 활동이에요 🗑️', a: '분리수거' },
+  { q: 'ㅊㅅ', hint: '교실을 쓸고 닦아서 깨끗하게 만드는 일이에요 🧹', a: '청소' },
+  { q: 'ㄷㅅ', hint: '학급문고나 도서실에서 책을 읽는 일이에요 📚', a: '독서' },
+  { q: 'ㅎㄱ', hint: '우리가 매일 와서 공부하고 친구들을 만나는 곳이에요 🏫', a: '학교' },
+  { q: 'ㅅㅅㄴ', hint: '우리 반을 사랑으로 가르쳐 주시는 분이에요 🧑‍🏫', a: '선생님' },
+  { q: '🪴', hint: '식물이 살고 있는 작은 그릇, 물을 잘 줘야 해요', a: '화분' },
+  { q: '🥛', hint: '매일 아침 뼈를 튼튼하게 하려고 마시는 하얀 음료', a: '우유' },
+  { q: '🖍️', hint: '칠판에 글씨를 쓰거나 그림을 그릴 때 사용하는 도구', a: '분필' }
+];
+
+const COMPLIMENT_TEMPLATES = [
+  "언제나 남을 잘 도와줘서 고마워! 🤝",
+  "오늘도 활기찬 모습이 참 보기 좋아! ☀️",
+  "우리 같은 역할 맡아서 멋지게 활동하자! 🧑‍🤝‍🧑",
+  "너의 꼼꼼한 성격은 정말 최고야! 🔍",
+  "항상 교실을 기분 좋게 만들어줘서 고마워! 🍀",
+  "너의 빛나는 아이디어가 정말 훌륭해! 💡",
+  "우리 반에 너 같은 친구가 있어서 다행이야! 🥰"
+];
+
+const COMPLIMENT_STICKERS = ['💖', '👍', '🌟', '👑', '🎉', '🍎', '🍀', '🧸', '🌈', '🔥'];
 
 export const RoleFlow = () => {
   // --- STATE VARIABLES ---
@@ -232,6 +255,50 @@ export const RoleFlow = () => {
     second: [],
     third: []
   });
+
+  // Participation mode states
+  const [participationMode, setParticipationMode] = useState<'simulated' | 'realtime'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('group') ? 'realtime' : 'simulated';
+  });
+  const [customClassCode, setCustomClassCode] = useState('');
+
+  // Password modal UI helpers
+  const [showPasswordError, setShowPasswordError] = useState(false);
+  const [showPasswordPlain, setShowPasswordPlain] = useState(false);
+
+  // Teacher Progress Monitor selected step
+  const [teacherSelectedProgressStep, setTeacherSelectedProgressStep] = useState<number>(0);
+
+  // Student Waiting Room states
+  const [activeWaitingTab, setActiveWaitingTab] = useState<'game' | 'compliment' | 'inbox'>('game');
+  const [activeMiniGame, setActiveMiniGame] = useState<'memory' | 'riddle'>('memory');
+
+  // Memory game state
+  interface MemoryCard {
+    id: number;
+    emoji: string;
+    isFlipped: boolean;
+    isMatched: boolean;
+  }
+  const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
+  const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
+  const [memoryFlips, setMemoryFlips] = useState(0);
+  const [memoryMatches, setMemoryMatches] = useState(0);
+  const [isGameCompleted, setIsGameCompleted] = useState(false);
+
+  // Consonant riddle state
+  const [currentRiddleIndex, setCurrentRiddleIndex] = useState(0);
+  const [riddleInput, setRiddleInput] = useState('');
+  const [riddleFeedback, setRiddleFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+
+  // Compliment states
+  const [complimentTargetId, setComplimentTargetId] = useState('');
+  const [selectedSticker, setSelectedSticker] = useState('💖');
+  const [selectedMessageTemplate, setSelectedMessageTemplate] = useState('언제나 남을 잘 도와줘서 고마워! 🤝');
+  const [lastSeenComplimentIds, setLastSeenComplimentIds] = useState<string[]>([]);
+  const [newComplimentToast, setNewComplimentToast] = useState<{ senderName: string; emoji: string; message: string } | null>(null);
 
   // Student custom role states in Step 3
   const [isSuggestingNames, setIsSuggestingNames] = useState(false);
@@ -362,6 +429,138 @@ export const RoleFlow = () => {
 
     return traitsScore;
   };
+
+  // --- MEMORY GAME LOGIC ---
+  const initMemoryGame = () => {
+    const emojis = ['🗑️', '💡', '🧹', '📚', '🪴', '🥛'];
+    const doubled = [...emojis, ...emojis];
+    const shuffled = doubled
+      .map((emoji, index) => ({ id: index, emoji, isFlipped: false, isMatched: false }))
+      .sort(() => Math.random() - 0.5);
+    setMemoryCards(shuffled);
+    setSelectedCardIndices([]);
+    setMemoryFlips(0);
+    setMemoryMatches(0);
+    setIsGameCompleted(false);
+  };
+
+  useEffect(() => {
+    if (isSubmittedForStep && activeWaitingTab === 'game') {
+      initMemoryGame();
+    }
+  }, [isSubmittedForStep, activeWaitingTab]);
+
+  const handleCardClick = (clickedIndex: number) => {
+    if (isGameCompleted) return;
+    if (selectedCardIndices.length >= 2) return;
+    if (memoryCards[clickedIndex].isFlipped || memoryCards[clickedIndex].isMatched) return;
+
+    setMemoryCards(prev => prev.map((card, idx) => idx === clickedIndex ? { ...card, isFlipped: true } : card));
+
+    const newSelected = [...selectedCardIndices, clickedIndex];
+    setSelectedCardIndices(newSelected);
+
+    if (newSelected.length === 2) {
+      setMemoryFlips(f => f + 1);
+      const [firstIdx, secondIdx] = newSelected;
+      if (memoryCards[firstIdx].emoji === memoryCards[secondIdx].emoji) {
+        setTimeout(() => {
+          setMemoryCards(prev => prev.map((card, idx) => 
+            (idx === firstIdx || idx === secondIdx) 
+              ? { ...card, isMatched: true, isFlipped: true } 
+              : card
+          ));
+          setMemoryMatches(m => {
+            const updated = m + 1;
+            if (updated === 6) {
+              setIsGameCompleted(true);
+            }
+            return updated;
+          });
+          setSelectedCardIndices([]);
+        }, 500);
+      } else {
+        setTimeout(() => {
+          setMemoryCards(prev => prev.map((card, idx) => 
+            (idx === firstIdx || idx === secondIdx) 
+              ? { ...card, isFlipped: false } 
+              : card
+          ));
+          setSelectedCardIndices([]);
+        }, 1000);
+      }
+    }
+  };
+
+  // --- RIDDLE QUIZ LOGIC ---
+  const handleRiddleSubmit = () => {
+    const currentRiddle = RIDDLE_QUESTIONS[currentRiddleIndex];
+    if (riddleInput.trim() === currentRiddle.a) {
+      setRiddleFeedback({ isCorrect: true, text: '정답입니다! 아리가 아주 기뻐해요 🌟 (+10점)' });
+      setQuizScore(s => s + 10);
+      setTimeout(() => {
+        setRiddleInput('');
+        setRiddleFeedback(null);
+        setCurrentRiddleIndex(prev => (prev + 1) % RIDDLE_QUESTIONS.length);
+      }, 1500);
+    } else {
+      setRiddleFeedback({ isCorrect: false, text: '아쉽네요, 다시 생각해보세요! 🤔' });
+      setTimeout(() => {
+        setRiddleFeedback(null);
+      }, 1500);
+    }
+  };
+
+  // --- COMPLIMENT DELIVERY LOGIC ---
+  const handleSendCompliment = async () => {
+    if (!complimentTargetId) {
+      alert('칭찬을 보낼 친구를 선택해 주세요!');
+      return;
+    }
+    try {
+      const code = groupId || `${studentGrade}-${studentClass}`;
+      await fetch(`/api/sync?group=${encodeURIComponent(code)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_compliment',
+          targetStudentId: complimentTargetId,
+          compliment: {
+            senderName: studentName,
+            emoji: selectedSticker,
+            message: selectedMessageTemplate
+          }
+        })
+      });
+      alert('친구에게 칭찬과 스티커를 보냈습니다! 💌');
+      setComplimentTargetId('');
+    } catch (e) {
+      console.error("Error sending compliment:", e);
+      alert('칭찬 전송에 실패했습니다. 다시 시도해 주세요.');
+    }
+  };
+
+  // Detect received compliments and show live toast
+  useEffect(() => {
+    const myInfo = groupRealStudents[myStudentId];
+    if (myInfo && Array.isArray(myInfo.receivedCompliments)) {
+      const compliments = myInfo.receivedCompliments;
+      if (compliments.length > 0) {
+        const latest = compliments[compliments.length - 1];
+        if (!lastSeenComplimentIds.includes(latest.id)) {
+          setNewComplimentToast({
+            senderName: latest.senderName,
+            emoji: latest.emoji,
+            message: latest.message
+          });
+          setLastSeenComplimentIds(prev => [...prev, latest.id]);
+          setTimeout(() => {
+            setNewComplimentToast(null);
+          }, 4000);
+        }
+      }
+    }
+  }, [groupRealStudents, myStudentId, lastSeenComplimentIds]);
 
   // Teacher State sync push effect
   useEffect(() => {
@@ -1719,6 +1918,38 @@ JSON 포맷:
     return [...realStudentsList, ...simulatedList];
   };
 
+  const getStudentStepStatus = (student: DashboardStudent, stepIndex: number): 'done' | 'active' | 'locked' => {
+    if (groupId && groupRealStudents[student.id]) {
+      const rs = groupRealStudents[student.id];
+      if (rs.step > stepIndex || (rs.step === stepIndex && rs.isDone)) {
+        return 'done';
+      } else if (rs.step === stepIndex) {
+        return 'active';
+      } else {
+        return 'locked';
+      }
+    }
+    
+    if (student.isUser) {
+      if (step > stepIndex || (step === stepIndex && isSubmittedForStep)) {
+        return 'done';
+      } else if (step === stepIndex) {
+        return 'active';
+      } else {
+        return 'locked';
+      }
+    }
+    
+    // Simulated classmates are done for steps <= current step, locked for steps > current step
+    if (step > stepIndex) {
+      return 'done';
+    } else if (step === stepIndex) {
+      return 'done';
+    } else {
+      return 'locked';
+    }
+  };
+
   const allStudents = getAllStudentsList();
   const filteredStudents = allStudents.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -2035,8 +2266,29 @@ JSON 포맷:
     );
   };
 
+  const isStudentWaiting = !!(
+    groupId && 
+    viewMode === 'student' && 
+    ((step === 0 && isRegisteredInGroup) || (step > 0 && step <= 8 && isSubmittedForStep))
+  );
+
   return (
     <div className="role-flow-layout">
+      {/* 💌 LIVE COMPLIMENT TOAST NOTIFICATION */}
+      {newComplimentToast && (
+        <div className="compliment-toast-overlay">
+          <div className="compliment-toast-card">
+            <div className="toast-emoji-bubble">
+              {newComplimentToast.emoji}
+            </div>
+            <div className="toast-text-content">
+              <div className="toast-sender">from. {newComplimentToast.senderName}</div>
+              <div className="toast-message">{newComplimentToast.message}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 👑 TEACHER / STUDENT MODE SWITCH */}
       <div className="mode-toggle-container no-print">
         <button 
@@ -2053,27 +2305,62 @@ JSON 포맷:
         </button>
       </div>
       {showTeacherPasswordModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <div className="modern-modal-overlay">
+          <div className={`modern-modal-content ${showPasswordError ? 'shake-error' : ''}`}>
+            <div className="modal-icon-bubble">
+              <Lock size={32} />
+            </div>
             <h2>교사 관리 탭 접근</h2>
-            <p>비밀번호를 입력해주세요.</p>
-            <input
-              type="password"
-              value={teacherPasswordInput}
-              onChange={(e) => setTeacherPasswordInput(e.target.value)}
-              placeholder="비밀번호"
-            />
-            <div className="modal-buttons">
-              <button onClick={() => { setShowTeacherPasswordModal(false); setTeacherPasswordInput(''); }}>취소</button>
-              <button onClick={() => {
-                if (teacherPasswordInput === '1234') {
-                  setViewMode('teacher');
-                  setShowTeacherPasswordModal(false);
-                  setTeacherPasswordInput('');
-                } else {
-                  alert('비밀번호가 틀렸습니다.');
-                }
-              }}>확인</button>
+            <p>보안 비밀번호를 입력해주세요.</p>
+            
+            <div className="password-input-wrapper">
+              <input
+                type={showPasswordPlain ? 'text' : 'password'}
+                value={teacherPasswordInput}
+                onChange={(e) => setTeacherPasswordInput(e.target.value)}
+                placeholder="비밀번호"
+                className="modern-modal-password-input"
+                maxLength={10}
+              />
+              <button 
+                type="button" 
+                className="password-eye-btn"
+                onClick={() => setShowPasswordPlain(!showPasswordPlain)}
+              >
+                {showPasswordPlain ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '-12px', marginBottom: '24px' }}>
+              💡 초기 비밀번호는 1234입니다.
+            </p>
+
+            <div className="modern-modal-buttons">
+              <button 
+                className="modern-modal-btn btn-cancel" 
+                onClick={() => { 
+                  setShowTeacherPasswordModal(false); 
+                  setTeacherPasswordInput(''); 
+                  setShowPasswordError(false);
+                }}
+              >
+                취소
+              </button>
+              <button 
+                className="modern-modal-btn btn-confirm" 
+                onClick={() => {
+                  if (teacherPasswordInput === '1234') {
+                    setViewMode('teacher');
+                    setShowTeacherPasswordModal(false);
+                    setTeacherPasswordInput('');
+                    setShowPasswordError(false);
+                  } else {
+                    setShowPasswordError(true);
+                    setTimeout(() => setShowPasswordError(false), 600);
+                  }
+                }}
+              >
+                확인
+              </button>
             </div>
           </div>
         </div>
@@ -2581,6 +2868,147 @@ JSON 포맷:
             </div>
           </div>
 
+          {/* 📊 실시간 단계별 진행 상황 모니터 및 진도 매트릭스 */}
+          <div className="teacher-progress-monitor">
+            <div className="progress-header-row">
+              <h3>📊 실시간 단계별 학생 완료 상황</h3>
+              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                * 파란색은 현재 해당 단계를 진행 중인 학생, 초록색은 완료한 학생입니다.
+              </span>
+            </div>
+
+            {/* 11단계 탭 컨트롤 */}
+            <div className="step-selector-tabs-container">
+              <div className="step-selector-tabs">
+                {STEPS.map((s, idx) => {
+                  const isCurrentClassStep = step === idx;
+                  const isActive = teacherSelectedProgressStep === idx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={`step-selector-tab-btn ${isActive ? 'active' : ''} ${isCurrentClassStep ? 'is-current-class-step' : ''}`}
+                      onClick={() => setTeacherSelectedProgressStep(idx)}
+                    >
+                      <span>{idx + 1}단계</span>
+                      <span style={{ fontSize: '0.75rem' }}>({s.label})</span>
+                      {isCurrentClassStep && <span style={{ fontSize: '0.7rem', color: '#4f46e5' }}>●</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 진행률 바 */}
+            {(() => {
+              const students = getAllStudentsList();
+              const totalCount = students.length;
+              const doneCount = students.filter(st => {
+                const status = getStudentStepStatus(st, teacherSelectedProgressStep);
+                return status === 'done';
+              }).length;
+              const activeCount = students.filter(st => {
+                const status = getStudentStepStatus(st, teacherSelectedProgressStep);
+                return status === 'active';
+              }).length;
+              const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+              // Categorize students
+              const doneStudents = students.filter(st => getStudentStepStatus(st, teacherSelectedProgressStep) === 'done');
+              const activeStudents = students.filter(st => getStudentStepStatus(st, teacherSelectedProgressStep) === 'active');
+              const lockedStudents = students.filter(st => getStudentStepStatus(st, teacherSelectedProgressStep) === 'locked');
+
+              return (
+                <>
+                  <div className="progress-stats-summary">
+                    <div className="progress-stats-info">
+                      <span>[{teacherSelectedProgressStep + 1}단계] 진행 상황: 완료 {doneCount}명 / 진행 중 {activeCount}명 / 미진입 {lockedStudents.length}명</span>
+                      <span>진척률 {percent}%</span>
+                    </div>
+                    <div className="progress-bar-bg">
+                      <div className="progress-bar-fill" style={{ width: `${percent}%` }}></div>
+                    </div>
+                  </div>
+
+                  <div className="student-completion-grid">
+                    <div className="completion-card done-card">
+                      <h4>
+                        <Check size={16} /> 완료한 학생 ({doneStudents.length}명)
+                      </h4>
+                      <div className="completion-student-list">
+                        {doneStudents.length > 0 ? (
+                          doneStudents.map(st => (
+                            <span key={st.id} className="student-tag-pill">
+                              {st.name} {st.isUser && '(나)'}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>아직 완료한 학생이 없습니다.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="completion-card pending-card">
+                      <h4>
+                        <RefreshCw size={14} className="spinning-icon" /> 진행 중인 학생 ({activeStudents.length}명)
+                      </h4>
+                      <div className="completion-student-list">
+                        {activeStudents.length > 0 ? (
+                          activeStudents.map(st => (
+                            <span key={st.id} className="student-tag-pill">
+                              {st.name} {st.isUser && '(나)'}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>진행 중인 학생이 없습니다.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* 전체 학급 진도 요약 매트릭스 */}
+            <div className="matrix-section">
+              <h4>🗺️ 학급 진도 요약 매트릭스 (바둑판 보기)</h4>
+              <div className="matrix-table-container">
+                <table className="matrix-table">
+                  <thead>
+                    <tr>
+                      <th style={{ position: 'sticky', left: 0, zIndex: 12, background: '#f1f5f9', borderRight: '2px solid #cbd5e1' }}>학생 이름</th>
+                      {STEPS.map((_, idx) => (
+                        <th key={idx} title={_.label}>{idx + 1}단계</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getAllStudentsList().map(st => (
+                      <tr key={st.id}>
+                        <td className="student-name-cell">
+                          {st.name} {st.isUser && '(나)'}
+                        </td>
+                        {STEPS.map((_, idx) => {
+                          const status = getStudentStepStatus(st, idx);
+                          return (
+                            <td key={idx}>
+                              <span 
+                                className={`matrix-dot ${status}`} 
+                                title={`${st.name} - ${idx + 1}단계: ${
+                                  status === 'done' ? '완료' : status === 'active' ? '진행 중' : '미진입'
+                                }`}
+                              ></span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           {/* 실시간 모니터링 테이블 */}
           <div className="teacher-monitoring-section" style={{ marginTop: '24px' }}>
             <div className="teacher-card monitor-card">
@@ -2707,20 +3135,377 @@ JSON 포맷:
                 </div>
               </div>
               <div className="mascot-bubble">
-                <p>{mascotSpeech}</p>
+                <p>{isStudentWaiting ? '다른 친구들이 완료하기를 기다리고 있어! ⏳ 기다리는 동안 아래에서 친구들과 매칭 카드 게임을 하거나 초성 퀴즈를 풀고, 친구에게 따뜻한 칭찬도 배달해 봐! 💌' : mascotSpeech}</p>
               </div>
             </div>
           </div>
 
           {/* 💻 STAGE VIEWS */}
           <div className="stage-card-wrapper">
-            
-            {/* STEP 0: WELCOME & NAME ENTRY */}
-            {step === 0 && (
+            {isStudentWaiting ? (
+              <div className="waiting-land-container animate-slide-in">
+                <div style={{
+                  background: '#eeebff',
+                  borderRadius: '16px',
+                  padding: '12px 16px',
+                  color: '#4f46e5',
+                  fontWeight: 'bold',
+                  border: '1px solid #dcd7ff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  fontSize: '0.9rem'
+                }}>
+                  <CheckCircle2 size={18} color="#4f46e5" />
+                  <span>
+                    {step === 0 
+                      ? '우리 반 그룹에 연결되었습니다! 선생님께서 시작하실 때까지 기다려 주세요. 🧑‍🏫'
+                      : `[${step + 1}단계: ${STEPS[step]?.label}] 활동을 제출했습니다! 선생님이 다음 단계로 이동하실 때까지 기다려 주세요. 🧑‍🏫`
+                    }
+                  </span>
+                </div>
+
+                <h3 className="waiting-land-title">
+                  <span>🏰 대기실 랜드 (Waiting Room Land)</span>
+                </h3>
+                <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>
+                  🎒 우리 반 친구들을 기다리는 동안 심심하지 않게 재미있는 게임과 따뜻한 칭찬을 나눠보세요!
+                </p>
+
+                {/* 탭 메뉴 */}
+                <div className="waiting-land-tabs">
+                  <button 
+                    type="button"
+                    className={`waiting-land-tab-btn ${activeWaitingTab === 'game' ? 'active' : ''}`}
+                    onClick={() => setActiveWaitingTab('game')}
+                  >
+                    🕹️ 미니 게임 천국
+                  </button>
+                  <button 
+                    type="button"
+                    className={`waiting-land-tab-btn ${activeWaitingTab === 'compliment' ? 'active' : ''}`}
+                    onClick={() => setActiveWaitingTab('compliment')}
+                  >
+                    💌 칭찬 배달 요정
+                  </button>
+                  <button 
+                    type="button"
+                    className={`waiting-land-tab-btn ${activeWaitingTab === 'inbox' ? 'active' : ''}`}
+                    onClick={() => setActiveWaitingTab('inbox')}
+                  >
+                    📬 받은 칭찬함
+                    {(() => {
+                      const myCompliments = groupRealStudents[myStudentId]?.receivedCompliments || [];
+                      return myCompliments.length > 0 ? (
+                        <span className="badge">{myCompliments.length}</span>
+                      ) : null;
+                    })()}
+                  </button>
+                </div>
+
+                {/* 탭 콘텐츠 */}
+                {activeWaitingTab === 'game' && (
+                  <div className="animate-slide-in">
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'center' }}>
+                      <button 
+                        type="button" 
+                        className={`cute-btn-sm ${activeMiniGame === 'memory' ? 'active' : ''}`}
+                        onClick={() => setActiveMiniGame('memory')}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: activeMiniGame === 'memory' ? '2px solid #4f46e5' : '1px solid #cbd5e1',
+                          background: activeMiniGame === 'memory' ? '#eeebff' : 'white',
+                          color: activeMiniGame === 'memory' ? '#4f46e5' : '#475569',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🎴 카드 뒤집기
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`cute-btn-sm ${activeMiniGame === 'riddle' ? 'active' : ''}`}
+                        onClick={() => setActiveMiniGame('riddle')}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: activeMiniGame === 'riddle' ? '2px solid #4f46e5' : '1px solid #cbd5e1',
+                          background: activeMiniGame === 'riddle' ? '#eeebff' : 'white',
+                          color: activeMiniGame === 'riddle' ? '#4f46e5' : '#475569',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🧩 초성 퀴즈
+                      </button>
+                    </div>
+
+                    {activeMiniGame === 'memory' ? (
+                      <div className="memory-game-panel">
+                        <div className="game-stats">
+                          <span>뒤집은 횟수: {memoryFlips}회</span>
+                          <span>찾은 짝: {memoryMatches} / 6</span>
+                        </div>
+                        
+                        {isGameCompleted ? (
+                          <div style={{ textAlign: 'center', padding: '20px' }}>
+                            <h3 style={{ fontSize: '1.2rem', color: '#10b981', fontWeight: 'bold', marginBottom: '12px' }}>🎉 축하합니다! 다 맞췄어요!</h3>
+                            <button 
+                              type="button" 
+                              onClick={initMemoryGame}
+                              style={{
+                                padding: '10px 20px',
+                                background: '#4f46e5',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              다시 도전하기 🔄
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="memory-game-grid">
+                            {memoryCards.map((card, idx) => {
+                              const isFlipped = card.isFlipped || card.isMatched;
+                              return (
+                                <div 
+                                  key={card.id} 
+                                  className={`memory-card-item ${isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched' : ''}`}
+                                  onClick={() => handleCardClick(idx)}
+                                >
+                                  <div className="memory-card-inner">
+                                    <div className="memory-card-face memory-card-front">
+                                      ❓
+                                    </div>
+                                    <div className="memory-card-face memory-card-back">
+                                      {card.emoji}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="quiz-panel">
+                        <div className="quiz-card">
+                          <span className="quiz-badge">점수: {quizScore}점</span>
+                          <div className="quiz-question-consonants">
+                            {RIDDLE_QUESTIONS[currentRiddleIndex].q}
+                          </div>
+                          <div className="quiz-question-desc">
+                            💡 {RIDDLE_QUESTIONS[currentRiddleIndex].hint}
+                          </div>
+                          
+                          <div className="quiz-input-row">
+                            <input 
+                              type="text" 
+                              placeholder="정답을 입력하세요" 
+                              value={riddleInput}
+                              onChange={(e) => setRiddleInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRiddleSubmit();
+                              }}
+                            />
+                            <button type="button" onClick={handleRiddleSubmit}>
+                              확인
+                            </button>
+                          </div>
+                          
+                          {riddleFeedback && (
+                            <div className={`quiz-feedback ${riddleFeedback.isCorrect ? 'correct' : 'wrong'}`} style={{ marginTop: '12px' }}>
+                              {riddleFeedback.text}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeWaitingTab === 'compliment' && (
+                  <div className="animate-slide-in">
+                    {(() => {
+                      const otherRealStudents = Object.values(groupRealStudents).filter((s: any) => s.id !== myStudentId);
+                      const availableTargets = [
+                        ...otherRealStudents.map(s => ({ id: s.id, name: s.name, isReal: true })),
+                        ...classmates.map(c => ({ id: c.id, name: c.name, isReal: false }))
+                      ];
+
+                      return (
+                        <div className="compliment-panel">
+                          <div className="compliment-field">
+                            <label>칭찬할 친구 선택</label>
+                            <select 
+                              className="cute-select" 
+                              value={complimentTargetId} 
+                              onChange={(e) => setComplimentTargetId(e.target.value)}
+                            >
+                              <option value="">-- 친구 선택 --</option>
+                              {availableTargets.map(target => (
+                                <option key={target.id} value={target.id}>
+                                  {target.name} {target.isReal ? '(실시간 접속)' : '(가상 친구)'}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="compliment-field">
+                            <label>칭찬 스티커 고르기</label>
+                            <div className="sticker-grid">
+                              {COMPLIMENT_STICKERS.map(sticker => (
+                                <button 
+                                  key={sticker}
+                                  type="button" 
+                                  className={`sticker-btn ${selectedSticker === sticker ? 'selected' : ''}`}
+                                  onClick={() => setSelectedSticker(sticker)}
+                                >
+                                  {sticker}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="compliment-field">
+                            <label>따뜻한 격려 한마디 선택</label>
+                            <div className="msg-template-list">
+                              {COMPLIMENT_TEMPLATES.map(msg => (
+                                <button 
+                                  key={msg}
+                                  type="button" 
+                                  className={`msg-template-btn ${selectedMessageTemplate === msg ? 'selected' : ''}`}
+                                  onClick={() => setSelectedMessageTemplate(msg)}
+                                >
+                                  {msg}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="btn-next" 
+                            onClick={handleSendCompliment}
+                            style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}
+                          >
+                            칭찬 메시지 보내기 💌
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {activeWaitingTab === 'inbox' && (
+                  <div className="animate-slide-in">
+                    {(() => {
+                      const myCompliments = groupRealStudents[myStudentId]?.receivedCompliments || [];
+                      return (
+                        <div className="inbox-panel">
+                          {myCompliments.length === 0 ? (
+                            <p style={{ textAlign: 'center', color: '#94a3b8', padding: '32px 0', fontSize: '0.9rem' }}>
+                              아직 도착한 칭찬 카드가 없어요. 친구들에게 먼저 따뜻한 칭찬을 보내보는 건 어떨까요? 💌
+                            </p>
+                          ) : (
+                            <div className="compliments-scroll">
+                              {myCompliments.map((comp: any, idx: number) => (
+                                <div key={comp.id || idx} className="compliment-inbox-card">
+                                  <div className="compliment-card-emoji">
+                                    {comp.emoji}
+                                  </div>
+                                  <div className="compliment-card-content">
+                                    <div className="compliment-card-sender">
+                                      from. {comp.senderName}
+                                    </div>
+                                    <div className="compliment-card-msg">
+                                      {comp.message}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* STEP 0: WELCOME & NAME ENTRY */}
+                {step === 0 && (
               <div className="stage-content animate-slide-in">
                 <h2 className="stage-title">👋 안녕! 너의 정보를 알려줘</h2>
                 <p className="stage-desc">친구들과 학급 역할을 고르기 전에 이름과 성별, 학년, 그리고 너의 개성있는 성격을 알려줄래?</p>
                 
+                {/* 🕹️ 참여 방식 선택 카드 */}
+                <div className="form-group">
+                  <label className="input-label">🕹️ 참여 방식 선택</label>
+                  <div className="participation-mode-selector">
+                    <div 
+                      className={`participation-mode-card ${participationMode === 'simulated' ? 'active' : ''}`}
+                      onClick={() => {
+                        setParticipationMode('simulated');
+                        setGroupId('');
+                        setIsRegisteredInGroup(false);
+                      }}
+                    >
+                      <div className="mode-icon">🕹️</div>
+                      <h3>혼자서 해보기</h3>
+                      <p>가상 시뮬레이션 모드 (친구들 없이 혼자 체험)</p>
+                    </div>
+                    <div 
+                      className={`participation-mode-card ${participationMode === 'realtime' ? 'active' : ''}`}
+                      onClick={() => {
+                        setParticipationMode('realtime');
+                        const code = customClassCode.trim() || `${studentGrade}-${studentClass}`;
+                        setGroupId(code);
+                        setIsRegisteredInGroup(false);
+                      }}
+                    >
+                      <div className="mode-icon">🌐</div>
+                      <h3>실시간 학급 모드</h3>
+                      <p>친구들과 실시간으로 연결하여 역할 정하기</p>
+                    </div>
+                  </div>
+                </div>
+
+                {participationMode === 'realtime' && (
+                  <div className="animate-slide-in" style={{ background: '#f8fafc', padding: '16px', borderRadius: '20px', border: '1px solid #cbd5e1', marginBottom: '16px' }}>
+                    <div className="connection-status-bar" style={{ margin: 0, padding: '8px 12px', background: 'transparent' }}>
+                      <span>연결 상태:</span>
+                      <div className={`status-badge ${groupId ? 'connected' : 'disconnected'}`}>
+                        <span className="status-dot"></span>
+                        <span>{groupId ? '연결됨' : '연결 해제'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="form-group" style={{ marginTop: '12px', marginBottom: 0 }}>
+                      <label className="input-label" style={{ fontSize: '0.85rem', color: '#64748b' }}>커스텀 학급 코드 입력 (선생님이 알려주신 코드가 있다면 입력하세요)</label>
+                      <input
+                        type="text"
+                        className="cute-input"
+                        value={customClassCode}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomClassCode(val);
+                          setGroupId(val.trim() || `${studentGrade}-${studentClass}`);
+                        }}
+                        placeholder={`기본 코드: ${studentGrade}-${studentClass}`}
+                        style={{ height: '40px', fontSize: '0.9rem', borderRadius: '10px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label className="input-label">내 이름</label>
                   <input
@@ -4120,6 +4905,8 @@ JSON 포맷:
                   </div>
                 )}
               </div>
+            )}
+              </>
             )}
 
             {/* STEP 9: ALLOCATION RUNNING ANIMATION */}

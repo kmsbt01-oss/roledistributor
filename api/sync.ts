@@ -129,6 +129,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...groupState.roleVotes,
         ...roleVotes,
       };
+    } else if (action === 'send_compliment') {
+      // Send a compliment to another student
+      const { targetStudentId, compliment } = req.body;
+      if (targetStudentId && compliment && groupState.students[targetStudentId]) {
+        const targetStudent = groupState.students[targetStudentId];
+        if (!Array.isArray(targetStudent.receivedCompliments)) {
+          targetStudent.receivedCompliments = [];
+        }
+        targetStudent.receivedCompliments.push({
+          id: `comp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          senderName: compliment.senderName,
+          emoji: compliment.emoji,
+          message: compliment.message,
+          timestamp: Date.now()
+        });
+      }
     } else {
       return res.status(400).json({ error: 'Invalid action' });
     }
