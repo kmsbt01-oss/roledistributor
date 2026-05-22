@@ -105,16 +105,6 @@ const TRAITS_CATEGORIES = {
   }
 };
 
-const TRAITS_LIST = [
-  { id: '정리정돈', label: '정리정돈 🧹', desc: '주변을 깨끗하게 정리해요' },
-  { id: '식물사랑', label: '식물사랑 🪴', desc: '자연과 식물을 아껴요' },
-  { id: '활동적', label: '활동적 🏃', desc: '움직이고 청소하기를 좋아해요' },
-  { id: '꼼꼼함', label: '꼼꼼함 🔍', desc: '작은 것도 세심하게 살펴요' },
-  { id: '도우미', label: '도우미 🤝', desc: '친구를 돕는 일에 보람을 느껴요' },
-  { id: '창의적', label: '창의적 💡', desc: '새롭고 재미있는 아이디어가 많아요' },
-  { id: '규칙준수', label: '규칙준수 📋', desc: '약속과 규칙을 잘 지켜요' },
-  { id: '글쓰기', label: '글쓰기 ✍️', desc: '글씨를 쓰고 기록하기를 좋아해요' }
-];
 
 const APPLICATION_KEYWORDS = [
   '책임감 🎯', '성실함 📅', '친절함 🤝', '도전정신 🏃', '꼭 해보고 싶어요 ❤️', '도움이 되고 싶어요 🙋', '깨끗하게 만들게요 🧹', '정리왕이 될게요 📦', '약속을 잘 지켜요 🤙'
@@ -133,7 +123,6 @@ export const RoleFlow = () => {
   const [groupId, setGroupId] = useState<string>('');
   const [myStudentId] = useState<string>(() => `student-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
   const [groupRealStudents, setGroupRealStudents] = useState<Record<string, any>>({});
-  const [isTeacherLocked, setIsTeacherLocked] = useState(true);
   const [showTeacherPasswordModal, setShowTeacherPasswordModal] = useState(false);
   const [teacherPasswordInput, setTeacherPasswordInput] = useState('');
   const [isPrintingAll, setIsPrintingAll] = useState(false);
@@ -250,12 +239,17 @@ export const RoleFlow = () => {
     setIsSubmittedForStep(false);
   }, [step]);
 
-  // Handle selecting a trait (only one per category)
+  // Handle selecting a trait (only one per category, toggle off if clicked again)
   const handleSelectTrait = (categoryKey: string, traitId: string) => {
     setStudentTraits(prev => {
       const categoryItems = TRAITS_CATEGORIES[categoryKey as keyof typeof TRAITS_CATEGORIES].items.map(item => item.id);
+      const isAlreadySelected = prev.includes(traitId);
       const cleanPrev = prev.filter(id => !categoryItems.includes(id));
-      return [...cleanPrev, traitId];
+      if (isAlreadySelected) {
+        return cleanPrev;
+      } else {
+        return [...cleanPrev, traitId];
+      }
     });
   };
 
@@ -509,6 +503,7 @@ export const RoleFlow = () => {
   useEffect(() => {
     const handleAfterPrint = () => {
       setIsPrintingAll(false);
+      document.body.classList.remove('printing-all');
     };
     window.addEventListener('afterprint', handleAfterPrint);
     return () => window.removeEventListener('afterprint', handleAfterPrint);
@@ -516,6 +511,7 @@ export const RoleFlow = () => {
 
   const handlePrintAll = () => {
     setIsPrintingAll(true);
+    document.body.classList.add('printing-all');
     setTimeout(() => {
       window.print();
     }, 150);
@@ -1575,29 +1571,62 @@ JSON 포맷:
     setTeacherSwapB('');
   };
 
-  // Retrieve full list of students (User + Classmates)
+  // Retrieve full list of students (User + Classmates + Group Real Students)
   const getAllStudentsList = (): DashboardStudent[] => {
-    return [
-      {
-        id: 'user-student',
-        name: studentName || '나',
-        isUser: true,
-        gender: studentGender,
-        applications: { ...applications },
-        suitability: { ...fitTestAnswers ? Object.keys(fitTestAnswers).reduce((acc, k) => {
-          acc[k] = calculatePercent(k);
-          return acc;
-        }, {} as Record<string, number>) : {} }
-      },
-      ...classmates.map(c => ({
-        id: c.id,
-        name: c.name,
-        isUser: false,
-        gender: c.gender,
-        applications: c.applications,
-        suitability: c.suitability
-      }))
-    ];
+    if (!groupId) {
+      return [
+        {
+          id: 'user-student',
+          name: studentName || '나',
+          isUser: true,
+          gender: studentGender,
+          applications: { ...applications },
+          suitability: { ...fitTestAnswers ? Object.keys(fitTestAnswers).reduce((acc, k) => {
+            acc[k] = calculatePercent(k);
+            return acc;
+          }, {} as Record<string, number>) : {} }
+        },
+        ...classmates.map(c => ({
+          id: c.id,
+          name: c.name,
+          isUser: false,
+          gender: c.gender,
+          applications: c.applications,
+          suitability: c.suitability
+        }))
+      ];
+    }
+
+    // In group mode:
+    // 1. Gather all real students from groupRealStudents
+    const realStudentsList: DashboardStudent[] = Object.values(groupRealStudents).map((s: any) => {
+      const suitability: Record<string, number> = {};
+      rolePool.forEach(role => {
+        suitability[role.id] = calculateSuitabilityForStudent(s.traits, s.fitTestAnswers, role.id);
+      });
+
+      return {
+        id: s.id,
+        name: s.name,
+        isUser: s.id === myStudentId,
+        gender: s.gender || 'boy',
+        applications: s.applications || { first: '', second: '', third: '' },
+        suitability
+      };
+    });
+
+    // 2. Add simulated classmates from classmate pool to pad out to classmateCount + 1
+    const neededSimulated = Math.max(0, (classmateCount + 1) - realStudentsList.length);
+    const simulatedList = classmates.slice(0, neededSimulated).map(c => ({
+      id: c.id,
+      name: c.name,
+      isUser: false,
+      gender: c.gender,
+      applications: c.applications,
+      suitability: c.suitability
+    }));
+
+    return [...realStudentsList, ...simulatedList];
   };
 
   const allStudents = getAllStudentsList();
@@ -1639,12 +1668,271 @@ JSON 포맷:
     groupedRoles[probId].push(role);
   });
 
-  const getProblemInfo = (probId: string) => {
-    const predefined = PROBLEM_LIST.find(p => p.id === probId);
+  const handleTeacherGradeClassChange = (grade: number, cls: number) => {
+    setStudentGrade(grade);
+    setStudentClass(cls);
+    setGroupId(`${grade}-${cls}`);
+  };
+
+  const handleToggleKeyword = (rank: 'first' | 'second' | 'third', keyword: string) => {
+    setApplicationKeywords(prev => {
+      const current = prev[rank] || [];
+      const updated = current.includes(keyword)
+        ? current.filter(kw => kw !== keyword)
+        : [...current, keyword];
+      return {
+        ...prev,
+        [rank]: updated
+      };
+    });
+  };
+
+  const getCurrentRoleVotes = (): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    rolePool.forEach(r => {
+      counts[r.id] = roleVotes[r.id] || 0;
+    });
+
+    if (groupId && groupRealStudents) {
+      Object.values(groupRealStudents).forEach((s: any) => {
+        if (viewMode === 'student' && s.id === myStudentId) return;
+        if (Array.isArray(s.userVotes)) {
+          s.userVotes.forEach((roleId: string) => {
+            if (counts[roleId] !== undefined) {
+              counts[roleId] += 1;
+            }
+          });
+        }
+      });
+
+      if (viewMode === 'student' && Array.isArray(userVotes)) {
+        userVotes.forEach(roleId => {
+          if (counts[roleId] !== undefined) {
+            counts[roleId] += 1;
+          }
+        });
+      }
+    }
+
+    return counts;
+  };
+
+  const getFinalReportData = () => {
+    const list: Array<{ name: string; roleName: string; pledge: string }> = [];
+    const allSts = getAllStudentsList();
+    allSts.forEach(s => {
+      const assignedRoleId = assignments[s.id];
+      const role = rolePool.find(r => r.id === assignedRoleId);
+      const roleName = role ? role.name : '학급 도우미';
+      
+      let studentPledge = '';
+      if (s.isUser) {
+        studentPledge = pledge;
+      } else {
+        const realStudent = groupRealStudents[s.id];
+        if (realStudent && realStudent.pledge) {
+          studentPledge = realStudent.pledge;
+        } else {
+          const classmateObj = classmates.find(c => c.id === s.id);
+          if (classmateObj && classmateObj.pledge) {
+            studentPledge = classmateObj.pledge;
+          } else {
+            studentPledge = `${roleName} 역할을 맡아 기쁘며, 우리 반을 위해 매일매일 성실하게 활동할 것을 약속합니다! 🤙`;
+          }
+        }
+      }
+      
+      list.push({
+        name: s.name,
+        roleName,
+        pledge: studentPledge || `${roleName} 역할을 정성껏 수행하겠습니다! 🤝`
+      });
+    });
+    return list;
+  };
+
+  const getProblemInfo = (id: string) => {
+    const predefined = PROBLEM_LIST.find(p => p.id === id);
     if (predefined) return predefined;
-    const custom = customProblemsList.find(p => p.id === probId);
+    const custom = customProblemsList.find(p => p.id === id);
     if (custom) return custom;
-    return { emoji: '✨', title: '직접 정의한 고민' };
+    return { id, emoji: '❓', title: id, desc: '새로운 우리 반 고민이에요.' };
+  };
+
+  const handleStudentFinishVoting = async () => {
+    if (groupId) {
+      setIsSubmittedForStep(true);
+    } else {
+      if (hasVotedSimulated) {
+        handleFinishVoting();
+      } else {
+        const newVotes: Record<string, number> = {};
+        rolePool.forEach(r => {
+          newVotes[r.id] = userVotes.includes(r.id) ? 1 : 0;
+        });
+        for (let i = 0; i < classmateCount; i++) {
+          const voteCount = Math.floor(Math.random() * 2) + 2;
+          const shuffled = [...rolePool].sort(() => 0.5 - Math.random());
+          const selected = shuffled.slice(0, voteCount);
+          selected.forEach(r => {
+            newVotes[r.id] = (newVotes[r.id] || 0) + 1;
+          });
+        }
+        setRoleVotes(newVotes);
+        setHasVotedSimulated(true);
+
+        const totalStudents = classmateCount + 1;
+        const currentPool = [...rolePool];
+        const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, newVotes);
+        setCustomCapacity(distributedCaps);
+        setIsAutoCapacity(false);
+        setRolePool(prevPool => {
+          return prevPool.map(r => ({
+            ...r,
+            votes: newVotes[r.id] || 0,
+            capacity: distributedCaps[r.id] !== undefined ? distributedCaps[r.id] : 1
+          }));
+        });
+        nextStep();
+      }
+    }
+  };
+
+  const renderStageFooter = (
+    stepIndex: number,
+    onNextClick?: () => void,
+    isNextDisabled: boolean = false,
+    customNextLabel?: string
+  ) => {
+    if (groupId && viewMode === 'student') {
+      if (stepIndex === 0) {
+        if (!isRegisteredInGroup) {
+          return (
+            <div className="stage-footer-actions" style={{ flexDirection: 'column', gap: '10px', marginTop: '24px' }}>
+              <button 
+                className="btn-next" 
+                onClick={() => {
+                  if (!studentName.trim()) {
+                    alert('이름을 적어주세요!');
+                    return;
+                  }
+                  if (studentTraits.length < 2) {
+                    alert('성격 태그를 2개 이상 선택해 주세요!');
+                    return;
+                  }
+                  setIsRegisteredInGroup(true);
+                  setIsSubmittedForStep(true);
+                }}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                우리 반 그룹 참여하기 🎒 <ChevronRight size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!studentName.trim()) {
+                    alert('이름을 적어주세요!');
+                    return;
+                  }
+                  if (studentTraits.length < 2) {
+                    alert('성격 태그를 2개 이상 선택해 주세요!');
+                    return;
+                  }
+                  setGroupId('');
+                  setIsRegisteredInGroup(true);
+                  nextStep();
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: '0.85rem',
+                  textDecoration: 'underline',
+                  cursor: 'pointer'
+                }}
+              >
+                혼자서 연습해보기 (연동 해제)
+              </button>
+            </div>
+          );
+        } else {
+          return (
+            <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
+              <div className="waiting-message" style={{
+                textAlign: 'center',
+                width: '100%',
+                padding: '16px',
+                background: '#eeebff',
+                borderRadius: '16px',
+                color: '#4f46e5',
+                fontWeight: 'bold',
+                border: '1px solid #dcd7ff'
+              }}>
+                우리 반 그룹에 연결되었습니다! 🎒 선생님께서 시작하실 때까지 기다려 주세요. 🧑‍🏫
+              </div>
+            </div>
+          );
+        }
+      }
+
+      if (isSubmittedForStep) {
+        return (
+          <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
+            <div className="waiting-message animate-pulse" style={{
+              textAlign: 'center',
+              width: '100%',
+              padding: '16px',
+              background: '#e0f2fe',
+              borderRadius: '16px',
+              color: '#0369a1',
+              fontWeight: 'bold',
+              border: '1px solid #bae6fd',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              <CheckCircle2 size={20} color="#0284c7" />
+              <span>이번 단계 활동을 성공적으로 제출했습니다! 선생님께서 다음 단계로 이동하실 때까지 잠시 기다려 주세요. 🧑‍🏫</span>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
+          <button 
+            className="btn-next"
+            style={{ width: '100%', justifyContent: 'center' }}
+            disabled={isNextDisabled}
+            onClick={() => {
+              if (onNextClick) {
+                onNextClick();
+              } else {
+                setIsSubmittedForStep(true);
+              }
+            }}
+          >
+            {customNextLabel || '활동 완료 제출하기 📤'}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
+        <button className="btn-back" onClick={prevStep} disabled={stepIndex === 0}>
+          <ChevronLeft size={18} /> 뒤로
+        </button>
+        <button 
+          className="btn-next" 
+          onClick={onNextClick || nextStep}
+          disabled={isNextDisabled}
+        >
+          {customNextLabel || `${STEPS[stepIndex + 1]?.label || '다음'} 단계로`} <ChevronRight size={18} />
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -1751,6 +2039,255 @@ JSON 포맷:
 
           {/* 주요 제어판 */}
           <div className="teacher-controls-section">
+            {/* 🎒 학급 그룹 연동 및 실시간 참여자 (QR 코드) */}
+            <div className="teacher-card control-card" style={{ gridColumn: 'span 2' }}>
+              <h3>🎒 우리 반 그룹 연동 및 실시간 참여자 (QR 코드)</h3>
+              <p className="card-desc text-muted">학년과 반을 설정하면 실시간 공유용 QR 코드가 자동으로 만들어집니다. 학생들에게 공유해서 연동 모드로 진행할 수 있어요!</p>
+              
+              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '16px' }}>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '6px' }}>대상 학년</label>
+                      <select 
+                        className="cute-select"
+                        value={studentGrade}
+                        onChange={(e) => handleTeacherGradeClassChange(Number(e.target.value), studentClass)}
+                      >
+                        {[3, 4, 5, 6].map(g => (
+                          <option key={g} value={g}>{g}학년</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', display: 'block', marginBottom: '6px' }}>대상 학급</label>
+                      <select 
+                        className="cute-select"
+                        value={studentClass}
+                        onChange={(e) => handleTeacherGradeClassChange(studentGrade, Number(e.target.value))}
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(c => (
+                          <option key={c} value={c}>{c}반</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem', wordBreak: 'break-all' }}>
+                    <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>접속 그룹 코드: </span>
+                    <span style={{ fontFamily: 'monospace', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{groupId || `${studentGrade}-${studentClass}`}</span>
+                    <div style={{ marginTop: '8px' }}>
+                      <strong>학생 접속 주소:</strong>
+                      <div style={{ color: '#0284c7', marginTop: '4px', textDecoration: 'underline' }}>
+                        {window.location.origin}/?group={groupId || `${studentGrade}-${studentClass}`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`${window.location.origin}/?group=${groupId || `${studentGrade}-${studentClass}`}`)}`} 
+                    alt="Class QR Code"
+                    style={{ width: '130px', height: '130px' }}
+                  />
+                </div>
+
+                <div style={{ flex: 1.5, minWidth: '300px' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#475569', marginBottom: '8px', display: 'flex', justifyItems: 'center', gap: '6px' }}>
+                    <span>👥 실시간 학생 참여 현황 (총 {Object.keys(groupRealStudents).length}명 접속)</span>
+                  </h4>
+                  <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '8px', background: '#f8fafc' }}>
+                    {Object.values(groupRealStudents).length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                        {Object.values(groupRealStudents).map((s: any) => (
+                          <div 
+                            key={s.id} 
+                            style={{ 
+                              background: 'white', 
+                              border: '1px solid #cbd5e0', 
+                              borderRadius: '8px', 
+                              padding: '6px 8px', 
+                              fontSize: '0.8rem', 
+                              display: 'flex', 
+                              flexDirection: 'column',
+                              gap: '4px',
+                              borderLeft: s.isDone ? '4px solid #10b981' : '4px solid #94a3b8'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <strong>{s.name}</strong>
+                              <span>{s.gender === 'boy' ? '👦' : '👧'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
+                              <span>{s.step + 1}단계</span>
+                              {s.isDone ? (
+                                <span style={{ color: '#10b981', fontWeight: 'bold' }}>제출완료</span>
+                              ) : (
+                                <span>활동중</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center', padding: '24px 0' }}>
+                        아직 접속한 학생이 없습니다. QR코드를 보여주세요!
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 🧑‍🏫 단계별 교사 제어 도구 */}
+            <div className="teacher-card control-card" style={{ gridColumn: 'span 2' }}>
+              <h3>🧑‍🏫 [{step + 1}단계: {STEPS[step]?.label}] - 교사 실시간 제어 도구</h3>
+              <p className="card-desc text-muted">현재 단계에서 필요한 교사 전용 관리 도구들입니다. 학생 화면에는 보이지 않으며, 반 전체의 동작을 유도할 수 있습니다.</p>
+              
+              <div style={{ marginTop: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e0' }}>
+                {step === 3 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>💡 3단계 역할 추천 & 정리 도구</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>학생들 의견을 취합한 후 아래 버튼을 통해 AI 추천 역할을 생성하거나, 중복된 역할을 정리할 수 있습니다.</p>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button 
+                        type="button"
+                        className="btn-ai-action"
+                        onClick={handleAskAIRoles}
+                        disabled={isGeneratingRoles}
+                      >
+                        {isGeneratingRoles ? (
+                          <>
+                            <RefreshCw className="spinning-icon" size={16} /> 아리가 고민하는 중...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> AI 특별 역할 추천받기
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="btn-ai-action btn-ai-merge-roles"
+                        onClick={handleMergeRolesAI}
+                        disabled={isMergingRoles || rolePool.length < 2}
+                        style={{
+                          background: '#ffffff',
+                          color: '#4f46e5',
+                          border: '2px solid #cbd5e0'
+                        }}
+                      >
+                        {isMergingRoles ? (
+                          <>
+                            <RefreshCw className="spinning-icon" size={16} /> 역할 통합 중...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> 너무 비슷한 역할 하나로 통합 (AI 정리)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 4 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🗳️ 4단계 투표 시뮬레이션 및 마감 도구</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>가상 학생들의 투표를 추가해 학급 전체의 투표 분산을 만들거나 투표를 강제로 마감할 수 있습니다.</p>
+                    
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-simulate-votes"
+                        onClick={handleSimulateClassmateVotes}
+                        disabled={isSimulatingVotes}
+                      >
+                        {isSimulatingVotes ? '🗳️ 가상 투표 진행 중...' : '🔄 가상 친구들 투표 시뮬레이션'}
+                      </button>
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <button
+                          type="button"
+                          className="btn-ai-extra-roles"
+                          onClick={() => handleGenerateExtraRolesAI(classmateCount + 1)}
+                          disabled={isGeneratingExtraRoles}
+                          style={{
+                            padding: '10px 16px',
+                            background: '#e8f0fe',
+                            color: '#1a73e8',
+                            border: '1.5px dashed #1a73e8',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn-finish-voting"
+                        onClick={handleFinishVoting}
+                        disabled={!hasVotedSimulated}
+                        style={{
+                          padding: '10px 16px',
+                          background: '#4f46e5',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontWeight: 'bold',
+                          cursor: hasVotedSimulated ? 'pointer' : 'not-allowed',
+                          opacity: hasVotedSimulated ? 1 : 0.6
+                        }}
+                      >
+                        투표 마감하고 다음 단계로
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 9 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>🎲 9단계 매칭 배정 실행</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>모든 학생들의 지망 접수가 완료되면 배정 매칭 알고리즘을 수행하여 1인 1역할을 지정합니다.</p>
+                    
+                    <button 
+                      className="btn-execute-match" 
+                      onClick={handleExecuteAllocation}
+                      disabled={isAssigning}
+                      style={{ margin: 0 }}
+                    >
+                      {isAssigning ? '⚙️ 배정 연산 처리 중...' : '🎲 1인 1역할 최종 자동 배정 시작!'}
+                    </button>
+                  </div>
+                )}
+
+                {step === 10 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#4f46e5' }}>💾 10단계 최종 결과 저장 및 출력</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>배치표와 우리 반 학생들이 작성한 약속 다짐 서약을 모아서 인쇄하거나 PDF로 보관하세요.</p>
+                    
+                    <button 
+                      className="btn-print-cert" 
+                      onClick={handlePrintAll}
+                      style={{ background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', padding: '12px 20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Printer size={18} /> 💾 최종 배치표 및 다짐 PDF 저장
+                    </button>
+                  </div>
+                )}
+
+                {step !== 3 && step !== 4 && step !== 9 && step !== 10 && (
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>
+                    💡 이 단계에는 특별한 개별 제어 버튼이 없습니다. 진행 단계 원격 제어판을 이용해 학급 단계를 조절해 주세요.
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* 1. 학생 수 및 기본 설정 */}
             <div className="teacher-card control-card">
               <h3>👥 학급 인원 및 가상 데이터 관리</h3>
@@ -2105,19 +2642,44 @@ JSON 포맷:
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="input-label">내 학년</label>
-                  <div className="grade-selector-grid">
-                    {[3, 4, 5, 6].map(g => (
-                      <button
-                        key={g}
-                        type="button"
-                        className={`btn-grade ${studentGrade === g ? 'active' : ''}`}
-                        onClick={() => setStudentGrade(g)}
-                      >
-                        {g}학년
-                      </button>
-                    ))}
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label className="input-label">내 학년</label>
+                    <select
+                      className="cute-input"
+                      value={studentGrade}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setStudentGrade(val);
+                        if (groupId) {
+                          setGroupId(`${val}-${studentClass}`);
+                        }
+                      }}
+                      style={{ width: '100%', height: '48px', borderRadius: '14px', border: '2px solid #e2e8f0', padding: '0 12px' }}
+                    >
+                      {[3, 4, 5, 6].map(g => (
+                        <option key={g} value={g}>{g}학년</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label className="input-label">내 반</label>
+                    <select
+                      className="cute-input"
+                      value={studentClass}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setStudentClass(val);
+                        if (groupId) {
+                          setGroupId(`${studentGrade}-${val}`);
+                        }
+                      }}
+                      style={{ width: '100%', height: '48px', borderRadius: '14px', border: '2px solid #e2e8f0', padding: '0 12px' }}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(c => (
+                        <option key={c} value={c}>{c}반</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -2142,60 +2704,66 @@ JSON 포맷:
                 </div>
 
                 <div className="form-group">
-                  <label className="input-label">내 성격 태그 (최소 2개 이상 선택)</label>
-                  <div className="traits-selector-grid" style={{
+                  <label className="input-label">🌟 나의 성향 선택 (각 영역에서 1개씩 골라보세요! 최소 2개 이상 선택)</label>
+                  <div className="traits-categories-grid" style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                    gap: '8px',
-                    marginTop: '8px'
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '16px',
+                    marginTop: '12px'
                   }}>
-                    {TRAITS_LIST.map(t => {
-                      const isSelected = studentTraits.includes(t.id);
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          className={`btn-trait ${isSelected ? 'active' : ''}`}
-                          onClick={() => {
-                            setStudentTraits(prev => 
-                              prev.includes(t.id) 
-                                ? prev.filter(x => x !== t.id) 
-                                : [...prev, t.id]
+                    {Object.entries(TRAITS_CATEGORIES).map(([catKey, category]) => (
+                      <div 
+                        key={catKey} 
+                        className="trait-category-card" 
+                        style={{
+                          background: '#f8fafc',
+                          borderRadius: '16px',
+                          padding: '16px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        }}
+                      >
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {category.title}
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {category.items.map(t => {
+                            const isSelected = studentTraits.includes(t.id);
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                className={`btn-trait ${isSelected ? 'active' : ''}`}
+                                onClick={() => handleSelectTrait(catKey, t.id)}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  border: isSelected ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                                  borderRadius: '12px',
+                                  background: isSelected ? '#eeebff' : '#ffffff',
+                                  color: isSelected ? '#4f46e5' : '#4a5568',
+                                  fontWeight: isSelected ? 'bold' : 'normal',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'flex-start',
+                                  gap: '2px',
+                                  textAlign: 'left',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.label}</span>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{t.desc}</span>
+                              </button>
                             );
-                          }}
-                          style={{
-                            padding: '10px',
-                            border: isSelected ? '2px solid #4f46e5' : '1px solid #e2e8f0',
-                            borderRadius: '12px',
-                            background: isSelected ? '#eeebff' : '#ffffff',
-                            color: isSelected ? '#4f46e5' : '#4a5568',
-                            fontWeight: isSelected ? 'bold' : 'normal',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '4px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          <span style={{ fontSize: '1rem' }}>{t.label}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#718096' }}>{t.desc}</span>
-                        </button>
-                      );
-                    })}
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="stage-footer-actions">
-                  <button 
-                    className="btn-next" 
-                    onClick={nextStep} 
-                    disabled={!studentName.trim() || studentTraits.length < 2}
-                  >
-                    시작하기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(0, undefined, !studentName.trim() || studentTraits.length < 2, '시작하기 🎒')}
               </div>
             )}
 
@@ -2257,18 +2825,7 @@ JSON 포맷:
                   </div>
                 </div>
 
-                <div className="stage-footer-actions">
-                  <button className="btn-back" onClick={prevStep}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button 
-                    className="btn-next" 
-                    onClick={nextStep}
-                    disabled={selectedProblems.length === 0 && !customProblem.trim()}
-                  >
-                    고민 공유 및 의견 나누기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(1, undefined, selectedProblems.length === 0 && !customProblem.trim(), '고민 공유 및 의견 나누기')}
               </div>
             )}
 
@@ -2368,14 +2925,7 @@ JSON 포맷:
                   </div>
                 </div>
 
-                <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
-                  <button className="btn-back" onClick={prevStep}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button className="btn-next" onClick={nextStep}>
-                    역할 제안하기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(2, undefined, false, '역할 제안하기')}
               </div>
             )}
 
@@ -2385,49 +2935,51 @@ JSON 포맷:
                 <h2 className="stage-title">💡 우리 반에 추천하는 해결사 역할</h2>
                 <p className="stage-desc">골라준 문제들을 바탕으로 만들어진 역할이에요. 마음에 안 드는 것은 빼고, 새 역할을 추가해보세요.</p>
 
-                <div className="ai-assist-box">
-                  <div className="ai-assist-badge">아리의 마법</div>
-                  <p>AI 조수가 특별히 더 창의적이고 재미있는 해결사 역할을 추천해주거나, 너무 중복되고 비슷한 역할을 하나로 깔끔하게 정리해 줄 수 있어요!</p>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
-                    <button 
-                      type="button"
-                      className="btn-ai-action"
-                      onClick={handleAskAIRoles}
-                      disabled={isGeneratingRoles}
-                    >
-                      {isGeneratingRoles ? (
-                        <>
-                          <RefreshCw className="spinning-icon" size={16} /> 아리가 고민하는 중...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={16} /> AI 특별 역할 추천받기
-                        </>
-                      )}
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn-ai-action btn-ai-merge-roles"
-                      onClick={handleMergeRolesAI}
-                      disabled={isMergingRoles || rolePool.length < 2}
-                      style={{
-                        background: '#ffffff',
-                        color: '#4f46e5',
-                        border: '2px solid #cbd5e0'
-                      }}
-                    >
-                      {isMergingRoles ? (
-                        <>
-                          <RefreshCw className="spinning-icon" size={16} /> 역할 통합 중...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={16} /> 너무 비슷한 역할 하나로 통합 (AI 정리)
-                        </>
-                      )}
-                    </button>
+                {!(groupId && viewMode === 'student') && (
+                  <div className="ai-assist-box">
+                    <div className="ai-assist-badge">아리의 마법</div>
+                    <p>AI 조수가 특별히 더 창의적이고 재미있는 해결사 역할을 추천해주거나, 너무 중복되고 비슷한 역할을 하나로 깔끔하게 정리해 줄 수 있어요!</p>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
+                      <button 
+                        type="button"
+                        className="btn-ai-action"
+                        onClick={handleAskAIRoles}
+                        disabled={isGeneratingRoles}
+                      >
+                        {isGeneratingRoles ? (
+                          <>
+                            <RefreshCw className="spinning-icon" size={16} /> 아리가 고민하는 중...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> AI 특별 역할 추천받기
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="btn-ai-action btn-ai-merge-roles"
+                        onClick={handleMergeRolesAI}
+                        disabled={isMergingRoles || rolePool.length < 2}
+                        style={{
+                          background: '#ffffff',
+                          color: '#4f46e5',
+                          border: '2px solid #cbd5e0'
+                        }}
+                      >
+                        {isMergingRoles ? (
+                          <>
+                            <RefreshCw className="spinning-icon" size={16} /> 역할 통합 중...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> 너무 비슷한 역할 하나로 통합 (AI 정리)
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <h3 className="sub-section-title">📦 현재 역할 목록 (최소 4개 필요)</h3>
                 
@@ -2458,9 +3010,11 @@ JSON 포맷:
                                     ⭐ {role.name}{' '}
                                     {role.isCustom && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: '#e2e8f0', borderRadius: '4px', color: '#4a5568', fontWeight: 'normal' }}>제안함</span>}
                                   </h4>
-                                  <button className="btn-delete-role" onClick={() => removeRole(role.id)}>
-                                    <Trash2 size={16} />
-                                  </button>
+                                  {!(groupId && viewMode === 'student') && (
+                                    <button className="btn-delete-role" onClick={() => removeRole(role.id)}>
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="role-pool-body">
                                   <p className="role-job"><strong>할 일:</strong> {role.job}</p>
@@ -2479,74 +3033,65 @@ JSON 포맷:
                 )}
 
                 {/* Add Custom Role Section */}
-                <div className="custom-role-builder" style={{ marginTop: '24px' }}>
-                  {!showAddCustomRole ? (
-                    <button 
-                      type="button" 
-                      className="btn-add-custom-toggle"
-                      onClick={() => setShowAddCustomRole(true)}
-                    >
-                      <Plus size={16} /> 우리 힘으로 직접 역할 새로 만들기
-                    </button>
-                  ) : (
-                    <form onSubmit={handleAddCustomRoleSubmit} className="custom-role-form animate-slide-in">
-                      <h4>🔨 우리가 만드는 새로운 역할</h4>
-                      <div className="form-group-sm">
-                        <label>역할 이름</label>
-                        <input 
-                          type="text" 
-                          value={newRoleName} 
-                          onChange={e => setNewRoleName(e.target.value)} 
-                          placeholder="예: 칠판 화가, 청소 히어로"
-                          maxLength={15}
-                        />
-                      </div>
-                      <div className="form-group-sm">
-                        <label>하는 구체적인 일</label>
-                        <textarea 
-                          value={newRoleJob} 
-                          onChange={e => setNewRoleJob(e.target.value)} 
-                          placeholder="이 역할이 매일 해야 하는 일을 구체적으로 적어주세요."
-                          maxLength={100}
-                          rows={2}
-                        />
-                      </div>
-                      <div className="form-group-sm">
-                        <label>필요한 이유 (생략 가능)</label>
-                        <input 
-                          type="text" 
-                          value={newRoleReason} 
-                          onChange={e => setNewRoleReason(e.target.value)} 
-                          placeholder="이 역할이 왜 교실에 필요할까요?"
-                          maxLength={100}
-                        />
-                      </div>
-                      <div className="form-actions-sm">
-                        <button type="submit" className="btn-submit-custom">추가하기</button>
-                        <button 
-                          type="button" 
-                          className="btn-cancel-custom"
-                          onClick={() => setShowAddCustomRole(false)}
-                        >
-                          취소
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
+                {!(groupId && viewMode === 'student') && (
+                  <div className="custom-role-builder" style={{ marginTop: '24px' }}>
+                    {!showAddCustomRole ? (
+                      <button 
+                        type="button" 
+                        className="btn-add-custom-toggle"
+                        onClick={() => setShowAddCustomRole(true)}
+                      >
+                        <Plus size={16} /> 우리 힘으로 직접 역할 새로 만들기
+                      </button>
+                    ) : (
+                      <form onSubmit={handleAddCustomRoleSubmit} className="custom-role-form animate-slide-in">
+                        <h4>🔨 우리가 만드는 새로운 역할</h4>
+                        <div className="form-group-sm">
+                          <label>역할 이름</label>
+                          <input 
+                            type="text" 
+                            value={newRoleName} 
+                            onChange={e => setNewRoleName(e.target.value)} 
+                            placeholder="예: 칠판 화가, 청소 히어로"
+                            maxLength={15}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>하는 구체적인 일</label>
+                          <textarea 
+                            value={newRoleJob} 
+                            onChange={e => setNewRoleJob(e.target.value)} 
+                            placeholder="이 역할이 매일 해야 하는 일을 구체적으로 적어주세요."
+                            maxLength={100}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>필요한 이유 (생략 가능)</label>
+                          <input 
+                            type="text" 
+                            value={newRoleReason} 
+                            onChange={e => setNewRoleReason(e.target.value)} 
+                            placeholder="이 역할이 왜 교실에 필요할까요?"
+                            maxLength={100}
+                          />
+                        </div>
+                        <div className="form-actions-sm">
+                          <button type="submit" className="btn-submit-custom">추가하기</button>
+                          <button 
+                            type="button" 
+                            className="btn-cancel-custom"
+                            onClick={() => setShowAddCustomRole(false)}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
 
-                <div className="stage-footer-actions">
-                  <button className="btn-back" onClick={prevStep} disabled={isGeneratingRoles}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button 
-                    className="btn-next" 
-                    onClick={nextStep}
-                    disabled={isGeneratingRoles || rolePool.length < 4}
-                  >
-                    역할 투표하러 가기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(3, undefined, isGeneratingRoles || rolePool.length < 4, '역할 투표하러 가기 🗳️')}
               </div>
             )}
 
@@ -2556,13 +3101,17 @@ JSON 포맷:
                 <h2 className="stage-title">🗳️ 좋은 아이디어에 하트 남기기 (역할 투표)</h2>
                 <p className="stage-desc">우리 교실의 고민을 해결하기 위한 좋은 역할 아이디어에 하트를 꾹 눌러줘! 💖</p>
 
-                <div className="vote-stage-layout">
+                <div className="vote-stage-layout" style={{
+                  display: 'grid',
+                  gridTemplateColumns: (groupId && viewMode === 'student') ? '1fr' : '2fr 1fr',
+                  gap: '24px'
+                }}>
                   {/* Left: Role List for Voting */}
                   <div className="vote-roles-list">
                     {rolePool.map(role => {
                       const prob = PROBLEM_LIST.find(p => p.id === role.problemId) || customProblemsList.find(p => p.id === role.problemId) || { emoji: '✨', title: '기타 고민' };
                       const isVoted = userVotes.includes(role.id);
-                      const voteCount = roleVotes[role.id] || 0;
+                      const voteCount = getCurrentRoleVotes()[role.id] || 0;
                       return (
                         <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`}>
                           <div className="vote-card-header">
@@ -2590,83 +3139,87 @@ JSON 포맷:
                   </div>
 
                   {/* Right: Vote Status and Simulation Panel */}
-                  <div className="vote-status-box">
-                    <h3>🗳️ 투표 진행판</h3>
-                    <p className="status-desc">학급 총원: <strong>{classmateCount + 1}명</strong></p>
-                    <p className="status-desc">현재 역할 후보 수: <strong>{rolePool.length}개</strong></p>
+                  {!(groupId && viewMode === 'student') && (
+                    <div className="vote-status-box">
+                      <h3>🗳️ 투표 진행판</h3>
+                      <p className="status-desc">학급 총원: <strong>{classmateCount + 1}명</strong></p>
+                      <p className="status-desc">현재 역할 후보 수: <strong>{rolePool.length}개</strong></p>
 
-                    {rolePool.length < classmateCount + 1 && (
-                      <div style={{ padding: '10px', background: '#fff9db', border: '1px solid #ffe066', borderRadius: '8px', fontSize: '0.8rem', color: '#f59f00' }}>
-                        ⚠️ 역할 후보 개수가 총원({classmateCount + 1}명)보다 적습니다. 배정 시 인원 비례로 정원이 자동 조정되지만, 역할을 더 늘리고 싶다면 아래 AI 버튼을 눌러보세요.
-                      </div>
-                    )}
+                      {rolePool.length < classmateCount + 1 && (
+                        <div style={{ padding: '10px', background: '#fff9db', border: '1px solid #ffe066', borderRadius: '8px', fontSize: '0.8rem', color: '#f59f00' }}>
+                          ⚠️ 역할 후보 개수가 총원({classmateCount + 1}명)보다 적습니다. 배정 시 인원 비례로 정원이 자동 조정되지만, 역할을 더 늘리고 싶다면 아래 AI 버튼을 눌러보세요.
+                        </div>
+                      )}
 
-                    <button
-                      type="button"
-                      className="btn-simulate-votes"
-                      onClick={handleSimulateClassmateVotes}
-                      disabled={isSimulatingVotes}
-                    >
-                      {isSimulatingVotes ? '🗳️ 가상 투표 진행 중...' : '🔄 가상 친구들 투표 시뮬레이션'}
-                    </button>
-
-                    {rolePool.length < classmateCount + 1 && (
                       <button
                         type="button"
-                        className="btn-ai-extra-roles"
-                        onClick={() => handleGenerateExtraRolesAI(classmateCount + 1)}
-                        disabled={isGeneratingExtraRoles}
+                        className="btn-simulate-votes"
+                        onClick={handleSimulateClassmateVotes}
+                        disabled={isSimulatingVotes}
+                      >
+                        {isSimulatingVotes ? '🗳️ 가상 투표 진행 중...' : '🔄 가상 친구들 투표 시뮬레이션'}
+                      </button>
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <button
+                          type="button"
+                          className="btn-ai-extra-roles"
+                          onClick={() => handleGenerateExtraRolesAI(classmateCount + 1)}
+                          disabled={isGeneratingExtraRoles}
+                          style={{
+                            marginTop: '8px',
+                            padding: '10px',
+                            background: '#e8f0fe',
+                            color: '#1a73e8',
+                            border: '1.5px dashed #1a73e8',
+                            borderRadius: '8px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
+                        </button>
+                      )}
+
+                      <div className="vote-rankings">
+                        <h4>📊 역할 득표 실시간 순위</h4>
+                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                          {[...rolePool]
+                            .sort((a, b) => (getCurrentRoleVotes()[b.id] || 0) - (getCurrentRoleVotes()[a.id] || 0))
+                            .map((r, idx) => (
+                              <div key={r.id} className="rank-item">
+                                <span className="rank-num">{idx + 1}</span>
+                                <span className="rank-name">{r.name}</span>
+                                <span className="rank-votes">❤️ {getCurrentRoleVotes()[r.id] || 0}표</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-finish-voting"
+                        onClick={handleFinishVoting}
+                        disabled={!hasVotedSimulated}
                         style={{
-                          marginTop: '8px',
-                          padding: '10px',
-                          background: '#e8f0fe',
-                          color: '#1a73e8',
-                          border: '1.5px dashed #1a73e8',
+                          marginTop: '12px',
+                          padding: '12px',
+                          background: '#4f46e5',
+                          color: 'white',
+                          border: 'none',
                           borderRadius: '8px',
                           fontWeight: 'bold',
-                          cursor: 'pointer'
+                          cursor: hasVotedSimulated ? 'pointer' : 'not-allowed',
+                          opacity: hasVotedSimulated ? 1 : 0.6
                         }}
                       >
-                        {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
+                        투표 마감하고 다음 단계로
                       </button>
-                    )}
-
-                    <div className="vote-rankings">
-                      <h4>📊 역할 득표 실시간 순위</h4>
-                      <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                        {[...rolePool]
-                          .sort((a, b) => (roleVotes[b.id] || 0) - (roleVotes[a.id] || 0))
-                          .map((r, idx) => (
-                            <div key={r.id} className="rank-item">
-                              <span className="rank-num">{idx + 1}</span>
-                              <span className="rank-name">{r.name}</span>
-                              <span className="rank-votes">❤️ {roleVotes[r.id] || 0}표</span>
-                            </div>
-                          ))}
-                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      className="btn-finish-voting"
-                      onClick={handleFinishVoting}
-                      disabled={!hasVotedSimulated}
-                      style={{
-                        marginTop: '12px',
-                        padding: '12px',
-                        background: '#4f46e5',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: 'bold',
-                        cursor: hasVotedSimulated ? 'pointer' : 'not-allowed',
-                        opacity: hasVotedSimulated ? 1 : 0.6
-                      }}
-                    >
-                      투표 마감하고 다음 단계로
-                    </button>
-                  </div>
+                  )}
                 </div>
+
+                {renderStageFooter(4, handleStudentFinishVoting, false, '투표 완료 제출하기 💖')}
               </div>
             )}
 
@@ -2819,18 +3372,7 @@ JSON 포맷:
                   </div>
                 </div>
 
-                <div className="stage-footer-actions">
-                  <button className="btn-back" onClick={prevStep}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button 
-                    className="btn-next" 
-                    onClick={nextStep}
-                    disabled={Object.keys(fitTestAnswers).length < Math.min(3, rolePool.length)}
-                  >
-                    희망 역할 지원하기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(5, undefined, Object.keys(fitTestAnswers).length < Math.min(3, rolePool.length), '희망 역할 지원하기')}
               </div>
             )}
 
@@ -2863,27 +3405,59 @@ JSON 포맷:
                     </div>
 
                     {applications.first && (
-                      <div className="form-group-sm animate-slide-in">
-                        <div className="reason-label-row">
-                          <label>선택하고 싶은 이유</label>
-                          <button
-                            type="button"
-                            className="btn-ai-helper"
-                            onClick={() => handleAIDraftReason('first')}
-                            disabled={isDraftingReason.first}
-                          >
-                            {isDraftingReason.first ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                            <span>AI 다듬기 도우미</span>
-                          </button>
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.first || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('first', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <textarea
-                          className="cute-textarea"
-                          value={applicationReasons.first}
-                          onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
-                          placeholder="이 역할을 잘할 수 있는 이유나 다짐을 간단히 적어보세요..."
-                          rows={2}
-                        />
-                      </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('first')}
+                              disabled={isDraftingReason.first}
+                            >
+                              {isDraftingReason.first ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.first}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
+                            placeholder="이 역할을 잘할 수 있는 이유나 다짐을 간단히 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -2908,27 +3482,59 @@ JSON 포맷:
                     </div>
 
                     {applications.second && (
-                      <div className="form-group-sm animate-slide-in">
-                        <div className="reason-label-row">
-                          <label>선택하고 싶은 이유</label>
-                          <button
-                            type="button"
-                            className="btn-ai-helper"
-                            onClick={() => handleAIDraftReason('second')}
-                            disabled={isDraftingReason.second}
-                          >
-                            {isDraftingReason.second ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                            <span>AI 다듬기 도우미</span>
-                          </button>
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.second || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('second', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <textarea
-                          className="cute-textarea"
-                          value={applicationReasons.second}
-                          onChange={(e) => setApplicationReasons(prev => ({ ...prev, second: e.target.value }))}
-                          placeholder="두 번째로 잘할 수 있는 이유를 적어보세요..."
-                          rows={2}
-                        />
-                      </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('second')}
+                              disabled={isDraftingReason.second}
+                            >
+                              {isDraftingReason.second ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.second}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, second: e.target.value }))}
+                            placeholder="두 번째로 잘할 수 있는 이유를 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -2953,44 +3559,65 @@ JSON 포맷:
                     </div>
 
                     {applications.third && (
-                      <div className="form-group-sm animate-slide-in">
-                        <div className="reason-label-row">
-                          <label>선택하고 싶은 이유</label>
-                          <button
-                            type="button"
-                            className="btn-ai-helper"
-                            onClick={() => handleAIDraftReason('third')}
-                            disabled={isDraftingReason.third}
-                          >
-                            {isDraftingReason.third ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
-                            <span>AI 다듬기 도우미</span>
-                          </button>
+                      <>
+                        <div className="keyword-badges-wrapper" style={{ marginTop: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>🏷️ 나를 표현하는 키워드 고르기 (AI 글쓰기에 반영돼요!):</span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {APPLICATION_KEYWORDS.map(keyword => {
+                              const isKeywordSelected = (applicationKeywords.third || []).includes(keyword);
+                              return (
+                                <button
+                                  key={keyword}
+                                  type="button"
+                                  className={`btn-keyword-badge ${isKeywordSelected ? 'active' : ''}`}
+                                  onClick={() => handleToggleKeyword('third', keyword)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.8rem',
+                                    border: isKeywordSelected ? '2px solid #4f46e5' : '1px solid #cbd5e0',
+                                    background: isKeywordSelected ? '#eeebff' : '#ffffff',
+                                    color: isKeywordSelected ? '#4f46e5' : '#4a5568',
+                                    cursor: 'pointer',
+                                    fontWeight: isKeywordSelected ? 'bold' : 'normal',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <textarea
-                          className="cute-textarea"
-                          value={applicationReasons.third}
-                          onChange={(e) => setApplicationReasons(prev => ({ ...prev, third: e.target.value }))}
-                          placeholder="이 역할을 지망하는 각오를 간단히 적어보세요..."
-                          rows={2}
-                        />
-                      </div>
+
+                        <div className="form-group-sm animate-slide-in">
+                          <div className="reason-label-row">
+                            <label>선택하고 싶은 이유</label>
+                            <button
+                              type="button"
+                              className="btn-ai-helper"
+                              onClick={() => handleAIDraftReason('third')}
+                              disabled={isDraftingReason.third}
+                            >
+                              {isDraftingReason.third ? <RefreshCw className="spinning-icon" size={14} /> : <Sparkles size={14} />} 
+                              <span>AI 다듬기 도우미</span>
+                            </button>
+                          </div>
+                          <textarea
+                            className="cute-textarea"
+                            value={applicationReasons.third}
+                            onChange={(e) => setApplicationReasons(prev => ({ ...prev, third: e.target.value }))}
+                            placeholder="이 역할을 지망하는 각오를 간단히 적어보세요..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
 
                 </div>
 
-                <div className="stage-footer-actions">
-                  <button className="btn-back" onClick={prevStep}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button 
-                    className="btn-next" 
-                    onClick={nextStep}
-                    disabled={!applications.first || !applicationReasons.first.trim()}
-                  >
-                    우리 반 경쟁률 확인하기 <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(6, undefined, !applications.first || !applicationReasons.first.trim(), '우리 반 경쟁률 확인하기')}
               </div>
             )}
 
@@ -3104,14 +3731,7 @@ JSON 포맷:
                   );
                 })()}
 
-                <div className="stage-footer-actions">
-                  <button className="btn-back" onClick={prevStep}>
-                    <ChevronLeft size={18} /> 뒤로
-                  </button>
-                  <button className="btn-next animate-pulse-btn" onClick={nextStep}>
-                    수정할 기회 얻기 (딱 1회!) <ChevronRight size={18} />
-                  </button>
-                </div>
+                {renderStageFooter(7, undefined, false, '수정할 기회 얻기 (딱 1회!)')}
               </div>
             )}
 
@@ -3121,79 +3741,117 @@ JSON 포맷:
                 <h2 className="stage-title">🔄 지망 수정하기 (마지막 결정!)</h2>
                 <p className="stage-desc">친구들의 지원 상황과 경쟁률을 보고 내 지망을 변경하고 싶다면 지금 수정할 수 있어요. (단 1회만 제공됩니다)</p>
 
-                <div className="modification-box">
-                  <div className="info-alert">
-                    <Volume2 size={20} />
-                    <span>경쟁률이 너무 높은 역할(빨간색) 보단 여유가 있는 역할(초록색)로 지망을 바꾸면 배정될 확률이 훨씬 높아져요!</span>
+                {groupId && viewMode === 'student' && isSubmittedForStep ? (
+                  <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
+                    <div className="waiting-message animate-pulse" style={{
+                      textAlign: 'center',
+                      width: '100%',
+                      padding: '16px',
+                      background: '#e0f2fe',
+                      borderRadius: '16px',
+                      color: '#0369a1',
+                      fontWeight: 'bold',
+                      border: '1px solid #bae6fd',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}>
+                      <CheckCircle2 size={20} color="#0284c7" />
+                      <span>최종 결정을 제출했습니다! 선생님께서 배정을 시작하실 때까지 기다려 주세요. 🎲</span>
+                    </div>
                   </div>
-
-                  <form onSubmit={handleModifySubmit} className="mod-form">
-                    <div className="choice-block mod-choice">
-                      <div className="choice-header-badge first">내 1지망 수정</div>
-                      <select
-                        className="cute-select"
-                        value={applications.first}
-                        onChange={(e) => setApplications(prev => ({ ...prev, first: e.target.value }))}
-                      >
-                        {rolePool.map(r => (
-                          <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                        ))}
-                      </select>
-
-                      <label className="mod-label">지원하는 이유 수정</label>
-                      <textarea
-                        className="cute-textarea"
-                        value={applicationReasons.first}
-                        onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
-                        rows={2}
-                      />
+                ) : (
+                  <div className="modification-box">
+                    <div className="info-alert">
+                      <Volume2 size={20} />
+                      <span>경쟁률이 너무 높은 역할(빨간색) 보단 여유가 있는 역할(초록색)로 지망을 바꾸면 배정될 확률이 훨씬 높아져요!</span>
                     </div>
 
-                    <div className="choice-block mod-choice">
-                      <div className="choice-header-badge second">내 2지망 수정</div>
-                      <select
-                        className="cute-select"
-                        value={applications.second}
-                        onChange={(e) => setApplications(prev => ({ ...prev, second: e.target.value }))}
-                      >
-                        <option value="">-- 선택 안함 --</option>
-                        {rolePool.map(r => (
-                          <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                        ))}
-                      </select>
-                    </div>
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (groupId) {
+                          setIsSubmittedForStep(true);
+                        } else {
+                          handleModifySubmit(e);
+                        }
+                      }} 
+                      className="mod-form"
+                    >
+                      <div className="choice-block mod-choice">
+                        <div className="choice-header-badge first">내 1지망 수정</div>
+                        <select
+                          className="cute-select"
+                          value={applications.first}
+                          onChange={(e) => setApplications(prev => ({ ...prev, first: e.target.value }))}
+                        >
+                          {rolePool.map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                        </select>
 
-                    <div className="choice-block mod-choice">
-                      <div className="choice-header-badge third">내 3지망 수정</div>
-                      <select
-                        className="cute-select"
-                        value={applications.third}
-                        onChange={(e) => setApplications(prev => ({ ...prev, third: e.target.value }))}
-                      >
-                        <option value="">-- 선택 안함 --</option>
-                        {rolePool.map(r => (
-                          <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                        ))}
-                      </select>
-                    </div>
+                        <label className="mod-label">지원하는 이유 수정</label>
+                        <textarea
+                          className="cute-textarea"
+                          value={applicationReasons.first}
+                          onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
+                          rows={2}
+                        />
+                      </div>
 
-                    <div className="mod-action-buttons">
-                      <button 
-                        type="button" 
-                        className="btn-keep-original"
-                        onClick={nextStep}
-                      >
-                        🙅 바꾸지 않고 이대로 결정할래요!
-                      </button>
-                      <button 
-                        type="submit" 
-                        className="btn-apply-modification"
-                      >
-                        🙆 네, 지망을 수정해서 낼래요!
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                      <div className="choice-block mod-choice">
+                        <div className="choice-header-badge second">내 2지망 수정</div>
+                        <select
+                          className="cute-select"
+                          value={applications.second}
+                          onChange={(e) => setApplications(prev => ({ ...prev, second: e.target.value }))}
+                        >
+                          <option value="">-- 선택 안함 --</option>
+                          {rolePool.map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="choice-block mod-choice">
+                        <div className="choice-header-badge third">내 3지망 수정</div>
+                        <select
+                          className="cute-select"
+                          value={applications.third}
+                          onChange={(e) => setApplications(prev => ({ ...prev, third: e.target.value }))}
+                        >
+                          <option value="">-- 선택 안함 --</option>
+                          {rolePool.map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mod-action-buttons">
+                        <button 
+                          type="button" 
+                          className="btn-keep-original"
+                          onClick={() => {
+                            if (groupId) {
+                              setIsSubmittedForStep(true);
+                            } else {
+                              nextStep();
+                            }
+                          }}
+                        >
+                          🙅 바꾸지 않고 이대로 결정할래요!
+                        </button>
+                        <button 
+                          type="submit" 
+                          className="btn-apply-modification"
+                        >
+                          🙆 네, 지망을 수정해서 낼래요!
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3203,7 +3861,13 @@ JSON 포맷:
                 <h2 className="stage-title">🎲 공정하게 역할 배정 실행하기</h2>
                 <p className="stage-desc">우리의 선택지(지망 순위)와 각자 작성했던 역할 적합도 진단 점수를 합쳐서, 아리가 가장 공정한 분배를 시작합니다!</p>
 
-                {isAssigning ? (
+                {groupId && viewMode === 'student' ? (
+                  <div className="assigning-animation-box animate-pulse" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+                    <div className="chick-mascot-huge" style={{ fontSize: '4rem', marginBottom: '20px' }}>🐣✨</div>
+                    <h3 style={{ fontSize: '1.25rem', color: '#4f46e5', fontWeight: 'bold', marginBottom: '12px' }}>역할 배정 준비 중</h3>
+                    <p style={{ color: '#64748b', fontSize: '0.95rem', textAlign: 'center' }}>선생님께서 역할 배정을 진행 중이십니다. 매칭 결과가 발표될 때까지 잠시만 기다려 주세요! 🎲</p>
+                  </div>
+                ) : isAssigning ? (
                   <div className="assigning-animation-box animate-pulse">
                     <div className="assigning-wheel">
                       ⚙️
@@ -3379,6 +4043,37 @@ JSON 포맷:
                           })}
                         </div>
                       </div>
+
+                      {/* 📋 FINAL REPORT TABLE (Only visible when printing all or explicitly) */}
+                      <div className="final-report-table-wrapper" style={{ marginTop: '32px' }}>
+                        <h3 className="placement-board-title" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>📋 우리 반 역할 배정 및 다짐 서약서</h3>
+                        <table className="teacher-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
+                          <thead>
+                            <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e0' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>이름</th>
+                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>역할</th>
+                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>나의 다짐 한마디 🤝</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getFinalReportData().map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.name}</td>
+                                <td style={{ padding: '12px' }}>
+                                  <span className="assigned-role-badge" style={{ display: 'inline-block' }}>{item.roleName}</span>
+                                </td>
+                                <td style={{ padding: '12px', fontStyle: 'italic', color: '#475569' }}>{item.pledge}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {isPrintingAll && (
+                        <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }} className="no-print">
+                          인쇄 모드가 준비되었습니다.
+                        </div>
+                      )}
 
                       {/* START OVER */}
                       <div className="reset-area no-print">

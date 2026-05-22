@@ -13,6 +13,7 @@ export interface Classmate {
     second: string;
     third: string;
   };
+  pledge?: string;
 }
 
 const BOY_NAMES = ['민준', '예준', '주원', '도윤', '시우', '지호', '지후', '준서', '건우', '우진', '선우', '현우', '민재', '연우', '준우', '정우'];
