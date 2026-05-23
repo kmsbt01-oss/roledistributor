@@ -3,7 +3,7 @@ import {
   Sparkles, CheckCircle2, Compass, FileText, 
   RefreshCw, Award, ChevronRight, ChevronLeft, User, 
   Smile, Meh, Frown, Plus, Trash2, AlertCircle, Check, 
-  RotateCcw, Printer, Heart, Volume2, Search, MessageSquare,
+  RotateCcw, Printer, Heart, Search, MessageSquare,
   Lock, Eye, EyeOff
 } from 'lucide-react';
 import { sendMessageToAPI } from '../api/chat';
@@ -2441,6 +2441,20 @@ JSON 포맷:
         </div>
       )}
 
+      {/* 📱 MOBILE PROGRESS BAR (Visible only on mobile/tablet) */}
+      <div className="mobile-step-indicator no-print">
+        <div className="mobile-step-badge">
+          {step + 1} / {STEPS.length}단계
+        </div>
+        <span className="mobile-step-name">{STEPS[step]?.label}</span>
+        <div className="mobile-progress-track">
+          <div 
+            className="mobile-progress-fill" 
+            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+          />
+        </div>
+      </div>
+
       {/* 🚀 PROGRESS STEPPER (Rounded, colorful & icon-based) */}
       <div className="role-stepper-container">
         <div className="role-stepper-track">
@@ -3060,6 +3074,9 @@ JSON 포맷:
             {/* 전체 학급 진도 요약 매트릭스 */}
             <div className="matrix-section">
               <h4>🗺️ 학급 진도 요약 매트릭스 (바둑판 보기)</h4>
+              <div className="scroll-tip-banner no-print">
+                👈 가로로 밀어서 반 친구들의 진도를 확인해보세요
+              </div>
               <div className="matrix-table-container">
                 <table className="matrix-table">
                   <thead>
@@ -4171,7 +4188,394 @@ JSON 포맷:
                               {suggestedNames.map((name, nIdx) => (
                                 <button
                                   key={nIdx}
-                             {/* STEP 6: PREFERENCE APPLICATION & COMPETITION GRAPH */}
+                                  type="button"
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #4f46e5',
+                                    padding: '6px 10px',
+                                    borderRadius: '10px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    color: '#4f46e5',
+                                    fontWeight: 'bold'
+                                  }}
+                                  onClick={() => setStudentCustomName(name)}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="form-actions-sm" style={{ marginTop: '16px' }}>
+                            <button
+                              type="button"
+                              className="btn-submit-custom"
+                              disabled={!studentCustomName.trim() || !studentCustomJob.trim()}
+                              onClick={() => handleStudentSuggestRole(studentCustomName, studentCustomJob, studentCustomProblem)}
+                            >
+                              우리 반 역할로 추가하기 ➕
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-cancel-custom"
+                              onClick={() => {
+                                setShowStudentAddCustom(false);
+                                setSuggestedNames([]);
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="custom-role-builder" style={{ marginTop: '24px' }}>
+                    {!showAddCustomRole ? (
+                      <button 
+                        type="button" 
+                        className="btn-add-custom-toggle"
+                        onClick={() => setShowAddCustomRole(true)}
+                      >
+                        <Plus size={16} /> 우리 힘으로 직접 역할 새로 만들기
+                      </button>
+                    ) : (
+                      <form onSubmit={handleAddCustomRoleSubmit} className="custom-role-form animate-slide-in">
+                        <h4>🔨 우리가 만드는 새로운 역할</h4>
+                        <div className="form-group-sm">
+                          <label>역할 이름</label>
+                          <input 
+                            type="text" 
+                            value={newRoleName} 
+                            onChange={e => setNewRoleName(e.target.value)} 
+                            placeholder="예: 칠판 화가, 청소 히어로"
+                            maxLength={15}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>하는 구체적인 일</label>
+                          <textarea 
+                            value={newRoleJob} 
+                            onChange={e => setNewRoleJob(e.target.value)} 
+                            placeholder="이 역할이 매일 해야 하는 일을 구체적으로 적어주세요."
+                            maxLength={100}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="form-group-sm">
+                          <label>필요한 이유 (생략 가능)</label>
+                          <input 
+                            type="text" 
+                            value={newRoleReason} 
+                            onChange={e => setNewRoleReason(e.target.value)} 
+                            placeholder="이 역할이 왜 교실에 필요할까요?"
+                            maxLength={100}
+                          />
+                        </div>
+                        <div className="form-actions-sm">
+                          <button type="submit" className="btn-submit-custom">추가하기</button>
+                          <button 
+                            type="button" 
+                            className="btn-cancel-custom"
+                            onClick={() => setShowAddCustomRole(false)}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {renderStageFooter(3, undefined, isGeneratingRoles || rolePool.length < 4, '역할 투표 제출하기 📤')}
+              </div>
+            )}
+
+            {/* STEP 4: ROLE VOTING & HEART RECOMMENDATIONS */}
+            {step === 4 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">🗳️ 좋은 아이디어에 하트 남기기 (역할 투표)</h2>
+                <p className="stage-desc">우리 교실의 고민을 해결하기 위한 좋은 역할 아이디어에 하트를 꾹 눌러줘! 💖</p>
+
+                <div className="vote-stage-layout" style={{
+                  display: 'grid',
+                  gridTemplateColumns: (groupId && viewMode === 'student') ? '1fr' : '2fr 1fr',
+                  gap: '24px'
+                }}>
+                  {/* Left: Role List for Voting */}
+                  <div className="vote-roles-list">
+                    {rolePool.map(role => {
+                      const prob = PROBLEM_LIST.find(p => p.id === role.problemId) || customProblemsList.find(p => p.id === role.problemId) || { emoji: '✨', title: '기타 고민' };
+                      const isVoted = userVotes.includes(role.id);
+                      const voteCount = getCurrentRoleVotes()[role.id] || 0;
+                      return (
+                        <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`}>
+                          <div className="vote-card-header">
+                            <span className="vote-card-category">{prob.emoji} {prob.title.substring(0, 10)}...</span>
+                            <span className="vote-card-recommended">👤 제안: {role.recommendedBy || 'AI 아리'}</span>
+                          </div>
+                          <h3 className="vote-card-title">{role.name}</h3>
+                          
+                          <div className="vote-card-detail-box job-box">
+                            <span className="detail-box-label">📋 해야 할 일</span>
+                            <p className="detail-box-text">{role.job}</p>
+                          </div>
+                          
+                          <div className="vote-card-detail-box reason-box">
+                            <span className="detail-box-label">💡 필요한 이유</span>
+                            <p className="detail-box-text">{role.reason}</p>
+                          </div>
+                          
+                          <div className="vote-card-footer">
+                            <button
+                              type="button"
+                              className={`btn-vote-toggle ${isVoted ? 'active' : ''}`}
+                              onClick={() => handleToggleUserVote(role.id)}
+                            >
+                              <Heart size={14} fill={isVoted ? 'white' : 'none'} />
+                              <span>{isVoted ? '추천 취소' : '좋은 생각이에요!'}</span>
+                            </button>
+                            <span className="vote-count-badge">❤️ {voteCount}표</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: Vote Status and Control Panel */}
+                  {!(groupId && viewMode === 'student') && (
+                    <div className="vote-status-box">
+                      <h3>🗳️ 투표 진행판</h3>
+                      <p className="status-desc">학급 총원: <strong>{classmateCount + 1}명</strong></p>
+                      <p className="status-desc">현재 역할 후보 수: <strong>{rolePool.length}개</strong></p>
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <div style={{ padding: '10px', background: '#fff9db', border: '1px solid #ffe066', borderRadius: '8px', fontSize: '0.8rem', color: '#f59f00' }}>
+                          ⚠️ 역할 후보 개수가 총원({classmateCount + 1}명)보다 적습니다. 배정 시 인원 비례로 정원이 자동 조정되지만, 역할을 더 늘리고 싶다면 아래 AI 버튼을 눌러보세요.
+                        </div>
+                      )}
+
+                      {rolePool.length < classmateCount + 1 && (
+                        <button
+                          type="button"
+                          className="btn-ai-extra-roles"
+                          onClick={() => handleGenerateExtraRolesAI(classmateCount + 1)}
+                          disabled={isGeneratingExtraRoles}
+                          style={{
+                            marginTop: '8px',
+                            padding: '10px',
+                            background: '#e8f0fe',
+                            color: '#1a73e8',
+                            border: '1.5px dashed #1a73e8',
+                            borderRadius: '8px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            width: '100%'
+                          }}
+                        >
+                          {isGeneratingExtraRoles ? '✨ 부족한 역할 생성 중...' : '✨ AI 추천으로 부족한 역할 채우기'}
+                        </button>
+                      )}
+
+                      <div className="vote-rankings">
+                        <h4>📊 역할 득표 실시간 순위</h4>
+                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                          {[...rolePool]
+                            .sort((a, b) => (getCurrentRoleVotes()[b.id] || 0) - (getCurrentRoleVotes()[a.id] || 0))
+                            .map((r, idx) => (
+                              <div key={r.id} className="rank-item">
+                                <span className="rank-num">{idx + 1}</span>
+                                <span className="rank-name">{r.name}</span>
+                                <span className="rank-votes">❤️ {getCurrentRoleVotes()[r.id] || 0}표</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-finish-voting"
+                        onClick={handleFinishVoting}
+                        disabled={rolePool.length < 4}
+                        style={{
+                          marginTop: '12px',
+                          padding: '12px',
+                          background: '#4f46e5',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 'bold',
+                          cursor: rolePool.length >= 4 ? 'pointer' : 'not-allowed',
+                          opacity: rolePool.length >= 4 ? 1 : 0.6,
+                          width: '100%'
+                        }}
+                      >
+                        투표 마감하고 다음 단계로
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {renderStageFooter(4, handleStudentFinishVoting, false, '투표 완료 제출하기 📤')}
+              </div>
+            )}
+
+            {/* STEP 5: ROLE EXPLORATION & SUITABILITY TEST */}
+            {step === 5 && (
+              <div className="stage-content animate-slide-in">
+                <h2 className="stage-title">⭐ 나와 어울리는 역할 찾기 (적합도 진단)</h2>
+                <p className="stage-desc">각 역할을 누르고 스마일 스티커를 골라 척도를 평가해봐! 최소 3개 이상 완료해야 해.</p>
+
+                <div className="fit-split-layout">
+                  {/* Role List */}
+                  <div className="fit-role-sidebar">
+                    {rolePool.map(role => {
+                      const stars = calculateStars(role.id);
+                      const isTested = !!fitTestAnswers[role.id];
+                      return (
+                        <div
+                          key={role.id}
+                          className={`fit-role-tab-item ${activeRoleForFit === role.id ? 'active' : ''} ${isTested ? 'tested' : ''}`}
+                          onClick={() => setActiveRoleForFit(role.id)}
+                        >
+                          <div className="tab-item-title-row">
+                            <span>{role.name}</span>
+                            {isTested && <CheckCircle2 size={16} className="checked-icon" />}
+                          </div>
+                          {isTested ? (
+                            <div className="stars-row">
+                              {'⭐'.repeat(stars)}
+                              <span className="percent-text">({calculatePercent(role.id)}%)</span>
+                            </div>
+                          ) : (
+                            <span className="pending-text">스티커 필요 🐣</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Fit Test Form */}
+                  <div className="fit-test-panel">
+                    {activeRoleForFit ? (
+                      (() => {
+                        const role = rolePool.find(r => r.id === activeRoleForFit)!;
+                        const answers = fitTestAnswers[activeRoleForFit] || { q1: 0, q2: 0, q3: 0 };
+                        
+                        return (
+                          <div className="fit-test-content animate-slide-in">
+                            <div className="selected-role-info">
+                              <h3>👑 {role.name}</h3>
+                              <p><strong>할 일:</strong> {role.job}</p>
+                              <p className="reason-quote">" {role.reason} "</p>
+                            </div>
+
+                            <div className="fit-questions-list">
+                              <h4 className="sticker-question-title">👇 질문에 어울리는 스마일 스티커를 클릭해줘!</h4>
+                              
+                              {/* Q1 */}
+                              <div className="question-item">
+                                <p className="q-text">1. 나는 이 역할을 매일매일 성실하게 잘 실천할 수 있나요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>아주 잘해요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>할 수 있어요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q1 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q1', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>조금 힘들어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Q2 */}
+                              <div className="question-item">
+                                <p className="q-text">2. 이 역할을 할 때 내 마음이 즐겁고 보람찰까요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>신나요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>괜찮아요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q2 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q2', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>안 하고 싶어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Q3 */}
+                              <div className="question-item">
+                                <p className="q-text">3. 내가 이 일을 하면 친구들이 기뻐하고 교실이 깨끗해질까요?</p>
+                                <div className="smiles-row">
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 5 ? 'active-good' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 5)}
+                                  >
+                                    <Smile size={32} />
+                                    <span>정말 그래요!</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 3 ? 'active-medium' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 3)}
+                                  >
+                                    <Meh size={32} />
+                                    <span>그럴 것 같아요</span>
+                                  </button>
+                                  <button 
+                                    className={`btn-smile ${answers.q3 === 1 ? 'active-bad' : ''}`}
+                                    onClick={() => handleFitTestAnswer(role.id, 'q3', 1)}
+                                  >
+                                    <Frown size={32} />
+                                    <span>잘 모르겠어요</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="fit-no-selection">
+                        <p>👈 왼쪽에서 역할을 선택해서 적합도 평가 스티커를 붙여주세요!</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {renderStageFooter(5, undefined, Object.keys(fitTestAnswers).length < Math.min(3, rolePool.length), '적합도 결과 제출하기 📤')}
+              </div>
+            )}
+
+            {/* STEP 6: PREFERENCE APPLICATION & COMPETITION GRAPH */}
             {step === 6 && (
               <div className="stage-content animate-slide-in">
                 <h2 className="stage-title">✍️ 가고 싶은 역할 지원서 작성 및 실시간 경쟁률</h2>
@@ -4416,97 +4820,143 @@ JSON 포맷:
                     </div>
                   </div>
 
-                  {/* 우측 영역: 실시간 경쟁률 차트 및 친구들 사연 */}
+                  {/* 우측 영역: 실시간 경쟁률 그래프 및 친구들 사연 피킹 창 */}
                   <div className="split-right-panel">
-                    <div className="stats-charts-list-compact">
-                      <h3 className="right-panel-title">📊 우리 반 실시간 지원 현황</h3>
+                    <div className="stats-box-integrated" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="stats-header" style={{ borderBottom: '2px solid #eeebff', paddingBottom: '10px' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          📊 실시간 경쟁률 현황
+                        </h3>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                          총 {classmateCount + 1}명의 1지망 실시간 지원 현황입니다.
+                        </p>
+                      </div>
+
                       {(() => {
                         const stats = getStats();
-                        const allStudentsList = getAllStudentsList();
+                        const allStudentsList: Student[] = [
+                          {
+                            id: 'user-student',
+                            name: studentName + ' (나)',
+                            isUser: true,
+                            applications: { ...applications },
+                            suitability: {}
+                          },
+                          ...classmates.map(c => ({
+                            id: c.id,
+                            name: c.name,
+                            isUser: false,
+                            applications: c.applications,
+                            suitability: c.suitability
+                          }))
+                        ];
                         const roleCapacities = calculateDynamicCapacities(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
 
-                        return rolePool.map(role => {
-                          const roleStat = stats[role.id] || { first: 0, second: 0, third: 0, total: 0 };
-                          const firstChoiceCount = roleStat.first;
-                          const capacity = roleCapacities[role.id] !== undefined ? roleCapacities[role.id] : 1;
-                          const isOverCapacity = firstChoiceCount > capacity;
-                          const compRate = capacity > 0 ? (firstChoiceCount / capacity).toFixed(1) : (firstChoiceCount > 0 ? '∞' : '0.0');
+                        return (
+                          <div className="stats-charts-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {rolePool.map(role => {
+                              const roleStat = stats[role.id] || { first: 0, second: 0, third: 0, total: 0 };
+                              const firstChoiceCount = roleStat.first;
+                              const capacity = roleCapacities[role.id] !== undefined ? roleCapacities[role.id] : 1;
+                              const isOverCapacity = firstChoiceCount > capacity;
+                              const compRate = capacity > 0 ? (firstChoiceCount / capacity).toFixed(1) : (firstChoiceCount > 0 ? '∞' : '0.0');
 
-                          // Colors based on competition rate
-                          let statusColorClass = 'status-green';
-                          let statusText = '여유로움 🍀';
-                          if (firstChoiceCount === capacity) {
-                            statusColorClass = 'status-yellow';
-                            statusText = '적당함 👍';
-                          } else if (isOverCapacity) {
-                            statusColorClass = 'status-red';
-                            statusText = '인기 폭발 ⚠️';
-                          }
+                              let statusColorClass = 'status-green';
+                              let statusText = '여유로움 🍀';
+                              if (firstChoiceCount === capacity) {
+                                statusColorClass = 'status-yellow';
+                                statusText = '적당함 👍';
+                              } else if (isOverCapacity) {
+                                statusColorClass = 'status-red';
+                                statusText = '인기 폭발 ⚠️';
+                              }
 
-                          return (
-                            <div key={role.id} className="stat-row-card-compact">
-                              <div className="stat-row-info">
-                                <div className="stat-role-title">
-                                  <strong>{role.name}</strong> 
-                                  <span className={`status-badge ${statusColorClass}`}>{statusText}</span>
-                                </div>
-                                <span className="stat-count-text">
-                                  1지망: <strong>{firstChoiceCount}명</strong> / 정원: {capacity}명 (경쟁률 {compRate}:1)
-                                </span>
-                              </div>
+                              const maxVal = Math.max(5, ...rolePool.map(r => (stats[r.id]?.first || 0)));
 
-                              {/* Custom CSS Bar Chart */}
-                              <div className="progress-bar-track">
-                                <div 
-                                  className={`progress-bar-fill ${statusColorClass}`}
-                                  style={{ width: `${Math.min(100, (firstChoiceCount / Math.max(8, firstChoiceCount)) * 100)}%` }}
-                                />
-                                {/* Capacity indicator line */}
-                                <div 
-                                  className="capacity-marker"
-                                  style={{ left: `${(capacity / Math.max(8, firstChoiceCount)) * 100}%` }}
-                                  title="정원 기준선"
-                                />
-                              </div>
-                              
-                              {/* Peeking Area Toggle */}
-                              <div className="stat-peek-area">
-                                <details className="peek-details">
-                                  <summary className="peek-summary">👀 이 역할 지원자 한마디 보기</summary>
-                                  <div className="peek-content-list animate-slide-in">
-                                    {(() => {
-                                      const studentsApplied = allStudentsList.filter(s => s.applications.first === role.id);
-                                      return (
-                                        <>
-                                          {studentsApplied.map(st => {
-                                            const isMe = st.isUser;
-                                            const reason = getStudentReason(st, 'first');
-                                            return (
-                                              <div key={st.id} className={`peek-item ${isMe ? 'user-peek-item' : ''}`}>
-                                                <span className="peek-name">{isMe ? `✨ ${studentName} (나)` : `${st.name} (${st.gender === 'boy' ? '👦' : '👧'})`}</span>
-                                                <p className="peek-reason">"{reason || '이유를 작성하지 않았습니다.'}"</p>
-                                              </div>
-                                            );
-                                          })}
-                                          {studentsApplied.length === 0 && (
-                                            <p className="no-peek-text">이 역할에 1지망으로 지원한 친구가 아직 없습니다.</p>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
+                              return (
+                                <div key={role.id} className="stat-row-card" style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                                  <div className="stat-row-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                                    <div className="stat-role-title" style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span>{role.name}</span>
+                                      <span className={`status-badge ${statusColorClass}`} style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px' }}>
+                                        {statusText}
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', color: '#475569', marginLeft: 'auto' }}>
+                                      1지망: <strong>{firstChoiceCount}명</strong> / 정원: {capacity}명 (경쟁률 {compRate}:1)
+                                    </span>
                                   </div>
-                                </details>
-                              </div>
-                            </div>
-                          );
-                        });
+
+                                  <div className="progress-bar-track" style={{ position: 'relative', height: '12px', background: '#cbd5e1', borderRadius: '6px', overflow: 'hidden', marginBottom: '8px' }}>
+                                    <div 
+                                      className={`progress-bar-fill ${statusColorClass}`}
+                                      style={{ 
+                                        height: '100%',
+                                        width: `${Math.min(100, (firstChoiceCount / maxVal) * 100)}%`,
+                                        transition: 'width 0.3s ease'
+                                      }}
+                                    />
+                                    <div 
+                                      className="capacity-marker"
+                                      style={{ 
+                                        position: 'absolute',
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '2px',
+                                        background: '#334155',
+                                        left: `${(capacity / maxVal) * 100}%` 
+                                      }}
+                                      title="정원 기준선"
+                                    />
+                                  </div>
+
+                                  <div className="stat-peek-area">
+                                    <details className="peek-details">
+                                      <summary className="peek-summary" style={{ fontSize: '0.8rem', cursor: 'pointer', color: '#4f46e5', fontWeight: 'bold' }}>
+                                        👀 지원한 친구들의 다짐 보기
+                                      </summary>
+                                      <div className="peek-content-list animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', padding: '8px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        {applications.first === role.id && (
+                                          <div className="peek-item user-peek-item" style={{ background: '#f5f3ff', padding: '8px', borderRadius: '6px', borderLeft: '3px solid #8b5cf6' }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#7c3aed' }}>✨ {studentName} (나)</span>
+                                            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#4b5563', fontStyle: 'italic' }}>
+                                              "{applicationReasons.first || '이유를 작성하는 중...'}"
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        {classmates
+                                          .filter(c => c.applications.first === role.id)
+                                          .map(c => (
+                                            <div key={c.id} className="peek-item" style={{ padding: '6px 8px', borderRadius: '6px', background: '#f8fafc' }}>
+                                              <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#374151' }}>{c.name} ({c.gender === 'boy' ? '👦' : '👧'})</span>
+                                              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#4b5563', fontStyle: 'italic' }}>
+                                                "{getStudentReason(c, 'first')}"
+                                              </p>
+                                            </div>
+                                          ))}
+
+                                        {classmates.filter(c => c.applications.first === role.id).length === 0 && applications.first !== role.id && (
+                                          <p style={{ margin: 0, fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center' }}>이 역할에 1지망으로 지원한 친구가 아직 없습니다.</p>
+                                        )}
+                                      </div>
+                                    </details>
+                                  </div>
+
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
                       })()}
                     </div>
                   </div>
                 </div>
 
-                {renderStageFooter(6, () => handleStudentSubmitApplications(), !applications.first || !applicationReasons.first.trim(), '활동 제출하기 📤')}
+                {renderStageFooter(6, handleStudentSubmitApplications, !applications.first || !applicationReasons.first.trim(), '활동 제출하기 📤')}
               </div>
+            )}
+              </>
             )}
 
             {/* STEP 7: ALLOCATION RUNNING ANIMATION */}
@@ -4595,419 +5045,6 @@ JSON 포맷:
 
                             <div className="cert-issuer">
                               {studentGrade}학년 {studentClass}반 AI 조수 아리 & 담임교사 백
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ACTION BUTTON FOR CERTIFICATE */}
-                      <div className="cert-actions no-print" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <button className="btn-print-cert" onClick={handlePrint}>
-                          <Printer size={18} /> 내 임명장 인쇄하기
-                        </button>
-                        {hasModified && (
-                          <span className="badge-modified-info" style={{ 
-                            fontSize: '0.8rem', 
-                            background: '#e0e7ff', 
-                            color: '#4f46e5', 
-                            padding: '6px 12px', 
-                            borderRadius: '12px', 
-                            fontWeight: 'bold' 
-                          }}>
-                            🔄 지망 수정 완료
-                          </span>
-                        )}
-                      </div>
-
-                      {/* ✍️ PLEDGE SECTION */}
-                      <div className="pledge-section">
-                        <h3>🪴 나의 다짐 약속 적기</h3>
-                        <p className="no-print">이 역할을 멋지게 수행하기 위해 지킬 다짐을 한마디 적어줘!</p>
-                        
-                        <div className="pledge-form-group">
-                          <input
-                            type="text"
-                            className="cute-pledge-input"
-                            value={pledge}
-                            onChange={(e) => setPledge(e.target.value)}
-                            placeholder="예: 매일 수업 끝나고 칠판을 뽀드득 소리가 나게 깨끗이 닦겠습니다!"
-                          />
-                          {pledge && (
-                            <div className="pledge-signature animate-slide-in">
-                              <Heart size={16} className="heart-icon" /> <strong>{studentName}</strong> 약속함
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 💡 NOTICE CARD FOR ROLE SWAP */}
-                      <div className="alert-box-info no-print" style={{ margin: '20px 0', background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a' }}>
-                        <AlertCircle size={18} />
-                        <span>💡 <strong>역할을 바꾸고 싶나요?</strong> 친구와 동의한 후 선생님께 말씀드려보세요! 선생님께서 교사 관리 탭에서 역할을 맞바꿔 주실 수 있습니다.</span>
-                      </div>
-
-                      {/* 🏫 CLASSROOM ROLE PLACEMENT BOARD */}
-                      <div className="class-placement-board">
-                        <h3 className="placement-board-title">🏫 우리 반 1인 1역할 최종 배치표</h3>
-                        <div className="placement-grid">
-                          {rolePool.map(r => {
-                            const assignedToThisRole: string[] = [];
-                            
-                            // Check user
-                            if (assignments['user-student'] === r.id) {
-                              assignedToThisRole.push(studentName + ' ⭐');
-                            }
-
-                            // Check classmates
-                            classmates.forEach(c => {
-                              if (assignments[c.id] === r.id) {
-                                assignedToThisRole.push(c.name);
-                              }
-                            });
-
-                            return (
-                              <div key={r.id} className="placement-card">
-                                <h4>
-                                  {r.name}{' '}
-                                  <span className="placement-capacity-tag" style={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'normal',
-                                    color: '#6b7280',
-                                    marginLeft: '4px'
-                                  }}>
-                                    ({assignedToThisRole.length}/{assignmentsCapacities[r.id] !== undefined ? assignmentsCapacities[r.id] : 1}명)
-                                  </span>
-                                </h4>
-                                <p className="placement-job-desc">{r.job}</p>
-                                <div className="placement-names-list">
-                                  {assignedToThisRole.map((name, nIdx) => (
-                                    <span 
-                                      key={nIdx} 
-                                      className={`placement-name-tag ${name.includes('⭐') ? 'user-tag animate-pulse-btn' : ''}`}
-                                    >
-                                      {name}
-                                    </span>
-                                  ))}
-                                  {assignedToThisRole.length === 0 && (
-                                    <span className="empty-tag">빈자리 🍃</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* 📋 FINAL REPORT TABLE (Only visible when printing all or explicitly) */}
-                      <div className="final-report-table-wrapper" style={{ marginTop: '32px' }}>
-                        <h3 className="placement-board-title" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>📋 우리 반 역할 배정 및 다짐 서약서</h3>
-                        <table className="teacher-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
-                          <thead>
-                            <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e0' }}>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>이름</th>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>역할</th>
-                              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>나의 다짐 한마디 🤝</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {getFinalReportData().map((item, idx) => (
-                              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.name}</td>
-                                <td style={{ padding: '12px' }}>
-                                  <span className="assigned-role-badge" style={{ display: 'inline-block' }}>{item.roleName}</span>
-                                </td>
-                                <td style={{ padding: '12px', fontStyle: 'italic', color: '#475569' }}>{item.pledge}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {isPrintingAll && (
-                        <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }} className="no-print">
-                          인쇄 모드가 준비되었습니다.
-                        </div>
-                      )}
-
-                      {/* START OVER */}
-                      <div className="reset-area no-print">
-                        <button className="btn-reset" onClick={handleReset}>
-                          <RotateCcw size={16} /> 처음부터 다시 역할 선정하기
-                        </button>
-                      </div>
-
-                    </div>
-                  );
-                })()}ong>{role.name}</strong> 
-                                  <span className={`status-badge ${statusColorClass}`}>{statusText}</span>
-                                </div>
-                                <span className="stat-count-text">
-                                  1지망: <strong>{firstChoiceCount}명</strong> / 정원: {capacity}명 (경쟁률 {compRate}:1)
-                                </span>
-                              </div>
-
-                              {/* Custom CSS Bar Chart */}
-                              <div className="progress-bar-track">
-                                <div 
-                                  className={`progress-bar-fill ${statusColorClass}`}
-                                  style={{ width: `${Math.min(100, (firstChoiceCount / Math.max(8, firstChoiceCount)) * 100)}%` }}
-                                />
-                                {/* Capacity indicator line */}
-                                <div 
-                                  className="capacity-marker"
-                                  style={{ left: `${(capacity / Math.max(8, firstChoiceCount)) * 100}%` }}
-                                  title="정원 기준선"
-                                />
-                              </div>
-                              
-                              {/* Peeking Area Toggle */}
-                              <div className="stat-peek-area">
-                                <details className="peek-details">
-                                  <summary className="peek-summary">👀 이 역할에 지원한 친구들의 사연 보기</summary>
-                                  <div className="peek-content-list animate-slide-in">
-                                    {/* Check if user applied as 1st */}
-                                    {applications.first === role.id && (
-                                      <div className="peek-item user-peek-item">
-                                        <span className="peek-name">✨ {studentName} (나)</span>
-                                        <p className="peek-reason">"{applicationReasons.first}"</p>
-                                      </div>
-                                    )}
-
-                                    {/* Classmates */}
-                                    {classmates
-                                      .filter(c => c.applications.first === role.id)
-                                      .map(c => (
-                                        <div key={c.id} className="peek-item">
-                                          <span className="peek-name">{c.name} ({c.gender === 'boy' ? '👦' : '👧'})</span>
-                                          <p className="peek-reason">"{c.reasons.first}"</p>
-                                        </div>
-                                      ))}
-                                    {classmates.filter(c => c.applications.first === role.id).length === 0 && applications.first !== role.id && (
-                                      <p className="no-peek-text">이 역할에 1지망으로 지원한 친구가 아직 없습니다.</p>
-                                    )}
-                                  </div>
-                                </details>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {renderStageFooter(7, undefined, false, '수정할 기회 얻기 (딱 1회!)')}
-              </div>
-            )}
-
-            {/* STEP 8: ONE-TIME MODIFICATION STEP (지망 수정 기회) */}
-            {step === 8 && (
-              <div className="stage-content animate-slide-in">
-                <h2 className="stage-title">🔄 지망 수정하기 (마지막 결정!)</h2>
-                <p className="stage-desc">친구들의 지원 상황과 경쟁률을 보고 내 지망을 변경하고 싶다면 지금 수정할 수 있어요. (단 1회만 제공됩니다)</p>
-
-                {groupId && viewMode === 'student' && isSubmittedForStep ? (
-                  <div className="stage-footer-actions" style={{ marginTop: '24px' }}>
-                    <div className="waiting-message animate-pulse" style={{
-                      textAlign: 'center',
-                      width: '100%',
-                      padding: '16px',
-                      background: '#e0f2fe',
-                      borderRadius: '16px',
-                      color: '#0369a1',
-                      fontWeight: 'bold',
-                      border: '1px solid #bae6fd',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}>
-                      <CheckCircle2 size={20} color="#0284c7" />
-                      <span>최종 결정을 제출했습니다! 선생님께서 배정을 시작하실 때까지 기다려 주세요. 🎲</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="modification-box">
-                    <div className="info-alert">
-                      <Volume2 size={20} />
-                      <span>경쟁률이 너무 높은 역할(빨간색) 보단 여유가 있는 역할(초록색)로 지망을 바꾸면 배정될 확률이 훨씬 높아져요!</span>
-                    </div>
-
-                    <form 
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (groupId) {
-                          setIsSubmittedForStep(true);
-                        } else {
-                          handleModifySubmit(e);
-                        }
-                      }} 
-                      className="mod-form"
-                    >
-                      <div className="choice-block mod-choice">
-                        <div className="choice-header-badge first">내 1지망 수정</div>
-                        <select
-                          className="cute-select"
-                          value={applications.first}
-                          onChange={(e) => setApplications(prev => ({ ...prev, first: e.target.value }))}
-                        >
-                          {rolePool.map(r => (
-                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                          ))}
-                        </select>
-
-                        <label className="mod-label">지원하는 이유 수정</label>
-                        <textarea
-                          className="cute-textarea"
-                          value={applicationReasons.first}
-                          onChange={(e) => setApplicationReasons(prev => ({ ...prev, first: e.target.value }))}
-                          rows={2}
-                        />
-                      </div>
-
-                      <div className="choice-block mod-choice">
-                        <div className="choice-header-badge second">내 2지망 수정</div>
-                        <select
-                          className="cute-select"
-                          value={applications.second}
-                          onChange={(e) => setApplications(prev => ({ ...prev, second: e.target.value }))}
-                        >
-                          <option value="">-- 선택 안함 --</option>
-                          {rolePool.map(r => (
-                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="choice-block mod-choice">
-                        <div className="choice-header-badge third">내 3지망 수정</div>
-                        <select
-                          className="cute-select"
-                          value={applications.third}
-                          onChange={(e) => setApplications(prev => ({ ...prev, third: e.target.value }))}
-                        >
-                          <option value="">-- 선택 안함 --</option>
-                          {rolePool.map(r => (
-                            <option key={r.id} value={r.id}>{r.name} (적합도: {calculatePercent(r.id)}% / {calculateStars(r.id)}★)</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="mod-action-buttons">
-                        <button 
-                          type="button" 
-                          className="btn-keep-original"
-                          onClick={() => {
-                            if (groupId) {
-                              setIsSubmittedForStep(true);
-                            } else {
-                              nextStep();
-                            }
-                          }}
-                        >
-                          🙅 바꾸지 않고 이대로 결정할래요!
-                        </button>
-                        <button 
-                          type="submit" 
-                          className="btn-apply-modification"
-                        >
-                          🙆 네, 지망을 수정해서 낼래요!
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-              </div>
-            )}
-              </>
-            )}
-
-            {/* STEP 9: ALLOCATION RUNNING ANIMATION */}
-            {step === 9 && (
-              <div className="stage-content animate-slide-in text-center-stage">
-                <h2 className="stage-title">🎲 공정하게 역할 배정 실행하기</h2>
-                <p className="stage-desc">우리의 선택지(지망 순위)와 각자 작성했던 역할 적합도 진단 점수를 합쳐서, 아리가 가장 공정한 분배를 시작합니다!</p>
-
-                {groupId && viewMode === 'student' ? (
-                  <div className="assigning-animation-box animate-pulse" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-                    <div className="chick-mascot-huge" style={{ fontSize: '4rem', marginBottom: '20px' }}>🐣✨</div>
-                    <h3 style={{ fontSize: '1.25rem', color: '#4f46e5', fontWeight: 'bold', marginBottom: '12px' }}>역할 배정 준비 중</h3>
-                    <p style={{ color: '#64748b', fontSize: '0.95rem', textAlign: 'center' }}>선생님께서 역할 배정을 진행 중이십니다. 매칭 결과가 발표될 때까지 잠시만 기다려 주세요! 🎲</p>
-                  </div>
-                ) : isAssigning ? (
-                  <div className="assigning-animation-box animate-pulse">
-                    <div className="assigning-wheel">
-                      ⚙️
-                    </div>
-                    <div className="scrolling-names-container">
-                      <p className="scrolling-name-item">민준이 배치 중...</p>
-                      <p className="scrolling-name-item">지우 적합도 검증 중...</p>
-                      <p className="scrolling-name-item">서현 선호도 확인 중...</p>
-                      <p className="scrolling-name-item">{studentName} 매칭 확인 중...</p>
-                    </div>
-                    <p className="assigning-text-status">🐣 아리가 공평하고 정밀하게 매칭 주사위를 굴리고 있어요! 🐣</p>
-                  </div>
-                ) : (
-                  <div className="ready-to-assign-box">
-                    <div className="chick-mascot-huge">
-                      🐣🎩
-                    </div>
-                    <button className="btn-execute-match" onClick={handleExecuteAllocation}>
-                      🎲 역할 배정 시뮬레이션 시작!
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* STEP 10: FINAL RESULT & CERTIFICATE / PLEDGE */}
-            {step === 10 && (
-              <div className="stage-content animate-slide-in print-wrapper">
-                <h2 className="stage-title no-print">🏆 최종 배정 결과 및 위촉식</h2>
-                <p className="stage-desc no-print">축하합니다! 모두가 한 학기 동안 소중하게 이끌어갈 학급 1인 1역할 배치도와 임명장입니다.</p>
-
-                {(() => {
-                  const assignedRoleId = assignments['user-student'];
-                  const role = rolePool.find(r => r.id === assignedRoleId);
-                  const detail = matchDetails['user-student'];
-                  
-                  let choiceRankKorean = '1지망';
-                  if (detail?.choiceRank === 'second') choiceRankKorean = '2지망';
-                  if (detail?.choiceRank === 'third') choiceRankKorean = '3지망';
-                  if (detail?.choiceRank === 'assigned_other') choiceRankKorean = '자율 배치';
-
-                  return (
-                    <div className="final-result-container">
-                      
-                      {/* 📜 CERTIFICATE CARD */}
-                      <div className="certificate-card" ref={printAreaRef}>
-                        <div className="cert-border-outer">
-                          <div className="cert-border-inner">
-                            <div className="cert-seal">🎖️</div>
-                            <h1 className="cert-main-title">임 명 장</h1>
-                            
-                            <div className="cert-info">
-                              <p className="cert-class">
-                                제 {studentGrade}학년 1반
-                              </p>
-                              <p className="cert-name">
-                                이 름 : <strong>{studentName}</strong>
-                              </p>
-                              <p className="cert-role">
-                                임명역할 : <strong>{role ? role.name : '학급 도우미'}</strong> ({choiceRankKorean} 배정)
-                              </p>
-                            </div>
-
-                            <div className="cert-body-text">
-                              위 사람은 성실한 태도와 교실을 사랑하는 마음으로 학급 문제 해결에 앞장섰기에, 한 학기 동안 학급을 기분 좋게 가꿀 <strong>{role ? role.name : '학급 도우미'}</strong>(으)로 기쁘게 임명합니다.
-                            </div>
-
-                            <div className="cert-date">
-                              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </div>
-
-                            <div className="cert-issuer">
-                              {studentGrade}학년 1반 AI 조수 아리 & 담임교사 백
                             </div>
                           </div>
                         </div>

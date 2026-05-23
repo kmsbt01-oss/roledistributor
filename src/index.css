@@ -3976,5 +3976,116 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
+/* Responsive Mobile Progress Bar Stepper */
+.mobile-step-indicator {
+  display: none;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.mobile-step-badge {
+  display: inline-block;
+  background: #eeebff;
+  color: #4f46e5;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 4px;
+}
+
+.mobile-step-name {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.mobile-progress-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mobile-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #818cf8);
+  border-radius: 4px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hide desktop stepper and show mobile on screens <= 768px */
+@media (max-width: 768px) {
+  .role-stepper-container {
+    display: none !important;
+  }
+  .mobile-step-indicator {
+    display: block !important;
+  }
+}
+
+/* Step 6: Integrated Preferences & Live Competition Split Layout */
+.step-split-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.split-left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.split-right-panel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Mobile responsive split layout */
+@media (max-width: 900px) {
+  .step-split-layout {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+}
+
+/* Scroll tip banner styled for mobile users */
+.scroll-tip-banner {
+  display: none;
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: 600;
+  animation: pulseTip 2s infinite;
+}
+
+@media (max-width: 768px) {
+  .scroll-tip-banner {
+    display: block !important;
+  }
+}
+
+@keyframes pulseTip {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
 
 
