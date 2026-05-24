@@ -131,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customCapacity: {},
         matchDetails: {},
         assignmentsCapacities: {},
+        brainstormComments: [],
       };
     }
     return res.status(200).json({ state: groupState });
@@ -154,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customCapacity: {},
         matchDetails: {},
         assignmentsCapacities: {},
+        brainstormComments: [],
       };
     }
 
@@ -164,6 +166,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...state,
         students: state.students !== undefined ? state.students : groupState.students,
       };
+    } else if (action === 'add_brainstorm_comment' && req.body.comment) {
+      // Student adds a brainstorm comment
+      if (!Array.isArray(groupState.brainstormComments)) {
+        groupState.brainstormComments = [];
+      }
+      groupState.brainstormComments.push(req.body.comment);
     } else if (action === 'suggest_role' && state?.role) {
       // Student suggests a new role
       const newRole = state.role;

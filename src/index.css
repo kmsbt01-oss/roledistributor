@@ -2415,6 +2415,12 @@ body {
 @media (max-width: 768px) {
   .brainstorm-layout {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .brainstorm-problems-list,
+  .brainstorm-chat-container {
+    max-height: 340px;
+    padding: 12px;
   }
 }
 
@@ -2744,6 +2750,46 @@ body {
   color: white;
 }
 
+/* Premium Absolute Floating Heart Button */
+.btn-vote-floating {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #fda4af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  color: #f43f5e;
+  z-index: 10;
+}
+
+.btn-vote-floating:hover {
+  transform: scale(1.15) rotate(5deg);
+  background: #fff1f2;
+  border-color: #f43f5e;
+}
+
+.btn-vote-floating.active {
+  background: #f43f5e;
+  border-color: #f43f5e;
+  color: white;
+  animation: heart-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.4);
+}
+
+@keyframes heart-bounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.35); }
+  65% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+
 .vote-count-badge {
   font-size: 0.85rem;
   font-weight: 700;
@@ -2976,6 +3022,63 @@ body {
     background: #fdf2f8 !important;
     border-color: #fbcfe8 !important;
     color: #db2777 !important;
+  }
+
+  /* Teacher printing monitor table */
+  body.printing-monitor {
+    background: white !important;
+  }
+
+  .printing-monitor .nav-header,
+  .printing-monitor .stage-indicator,
+  .printing-monitor .stage-footer,
+  .printing-monitor .no-print,
+  .printing-monitor button,
+  .printing-monitor .dashboard-panel,
+  .printing-monitor .alert-box-info,
+  .printing-monitor .teacher-header,
+  .printing-monitor .teacher-card-grid,
+  .printing-monitor .teacher-quick-nav-bar,
+  .printing-monitor .teacher-controls-section,
+  .printing-monitor .teacher-progress-monitor,
+  .printing-monitor .reset-area {
+    display: none !important;
+  }
+
+  .printing-monitor .teacher-monitoring-section {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Polaroid Wall Poster Print Configuration */
+  .printing-all .class-pledge-board {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .printing-all .pledge-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .printing-all .pledge-polaroid-card {
+    background: white !important;
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    padding: 12px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   @page {
@@ -4085,6 +4188,156 @@ body {
   0% { opacity: 0.7; }
   50% { opacity: 1; }
   100% { opacity: 0.7; }
+}
+
+/* ==========================================
+   📸 PREMIUM POLAROID CLASS PLEDGE POSTER
+   ========================================== */
+.class-pledge-board {
+  margin-top: 40px;
+  background: #ffffff;
+  border: 4px double #cbd5e1;
+  border-radius: 28px;
+  padding: 32px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  background-image: radial-gradient(#e2e8f0 0.5px, transparent 0.5px);
+  background-size: 14px 14px;
+}
+
+.pledge-board-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 24px;
+}
+
+.pledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.pledge-polaroid-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+}
+
+.pledge-polaroid-card:hover {
+  transform: translateY(-6px) rotate(1deg);
+  box-shadow: 0 16px 24px -8px rgba(0, 0, 0, 0.08), 0 8px 12px -4px rgba(0, 0, 0, 0.03);
+  border-color: #cbd5e1;
+}
+
+.pledge-polaroid-card.my-polaroid {
+  background: #fffbeb;
+  border: 2px solid #fcd34d;
+  box-shadow: 0 10px 20px -6px rgba(252, 211, 77, 0.25);
+}
+
+.polaroid-header {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.polaroid-role-badge {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4338ca;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  box-shadow: 0 2px 4px -1px rgba(99, 102, 241, 0.1);
+}
+
+.polaroid-student-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 2px dashed #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.polaroid-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.polaroid-gender {
+  font-size: 1.1rem;
+}
+
+.polaroid-job-box, .polaroid-pledge-box {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+
+.polaroid-job-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #10b981;
+}
+
+.polaroid-pledge-box {
+  background: #fff5f5;
+  border: 1px solid #fecdd3;
+  border-left: 4px solid #f43f5e;
+}
+
+.polaroid-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #64748b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.polaroid-text {
+  margin: 0;
+  color: #334155;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.polaroid-pledge-text {
+  margin: 0;
+  color: #be185d;
+  font-style: italic;
+  font-weight: bold;
+  line-height: 1.4;
+}
+
+.polaroid-signature {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: auto;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+}
+
+.signature-handwritten {
+  font-weight: 800;
+  color: #4f46e5;
+  background: #f0f3ff;
+  padding: 2px 8px;
+  border-radius: 6px;
 }
 
 

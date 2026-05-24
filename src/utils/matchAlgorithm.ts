@@ -2,6 +2,7 @@ export interface Student {
   id: string;
   name: string;
   isUser: boolean;
+  isReal?: boolean;
   applications: {
     first: string;
     second: string;
@@ -100,6 +101,7 @@ export const runMatchAlgorithm = (
 
   students.forEach(student => {
     const { first, second, third } = student.applications;
+    const realBoost = student.isReal ? 50000 : 0;
     
     // Add bid for 1st choice
     if (first) {
@@ -111,7 +113,7 @@ export const runMatchAlgorithm = (
         studentId: student.id,
         roleId: first,
         choiceRank: 'first',
-        score: 1000 + (suitabilityScore * 3) + userBoost + tieBreaker
+        score: 1000 + (suitabilityScore * 3) + userBoost + realBoost + tieBreaker
       });
     }
 
@@ -125,7 +127,7 @@ export const runMatchAlgorithm = (
         studentId: student.id,
         roleId: second,
         choiceRank: 'second',
-        score: 500 + (suitabilityScore * 3) + userBoost + tieBreaker
+        score: 500 + (suitabilityScore * 3) + userBoost + realBoost + tieBreaker
       });
     }
 
@@ -139,7 +141,7 @@ export const runMatchAlgorithm = (
         studentId: student.id,
         roleId: third,
         choiceRank: 'third',
-        score: 200 + (suitabilityScore * 3) + userBoost + tieBreaker
+        score: 200 + (suitabilityScore * 3) + userBoost + realBoost + tieBreaker
       });
     }
   });
