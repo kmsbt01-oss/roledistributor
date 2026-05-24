@@ -601,6 +601,7 @@ export const RoleFlow = () => {
                 isAutoCapacity,
                 customCapacity,
                 matchDetails,
+                assignmentsCapacities,
                 schoolName,
                 studentGrade,
                 studentClass
@@ -626,6 +627,7 @@ export const RoleFlow = () => {
     isAutoCapacity,
     customCapacity,
     matchDetails,
+    assignmentsCapacities,
     schoolName,
     studentGrade,
     studentClass
@@ -695,38 +697,106 @@ export const RoleFlow = () => {
           const data = await res.json();
           const serverState = data.state;
           if (serverState) {
+            // 1. Sync student status (always)
             setGroupRealStudents(serverState.students || {});
             
+            // 2. Sync shared state for BOTH teacher and student
+            if (Array.isArray(serverState.rolePool)) {
+              setRolePool(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.rolePool)) {
+                  return serverState.rolePool;
+                }
+                return prev;
+              });
+            }
+            if (serverState.roleVotes) {
+              setRoleVotes(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.roleVotes)) {
+                  return serverState.roleVotes;
+                }
+                return prev;
+              });
+            }
+            if (Array.isArray(serverState.classmates)) {
+              setClassmates(prev => {
+                // If classmate list has no suitability/reasons on server, merge with local ones to preserve simulated credentials
+                const serverClassmates = serverState.classmates.map((sc: any) => {
+                  const localC = prev.find(lc => lc.id === sc.id);
+                  return {
+                    ...sc,
+                    suitability: sc.suitability || localC?.suitability || {},
+                    reasons: sc.reasons || localC?.reasons || { first: '', second: '', third: '' },
+                    pledge: sc.pledge || localC?.pledge || ''
+                  };
+                });
+                if (JSON.stringify(prev.map((c: any) => c.id)) !== JSON.stringify(serverClassmates.map((c: any) => c.id)) || 
+                    JSON.stringify(prev.map((c: any) => c.applications)) !== JSON.stringify(serverClassmates.map((c: any) => c.applications))) {
+                  return serverClassmates;
+                }
+                return prev;
+              });
+            }
+            if (serverState.assignments) {
+              setAssignments(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.assignments)) {
+                  return serverState.assignments;
+                }
+                return prev;
+              });
+            }
+            if (serverState.matchDetails) {
+              setMatchDetails(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.matchDetails)) {
+                  return serverState.matchDetails;
+                }
+                return prev;
+              });
+            }
+            if (serverState.assignmentsCapacities) {
+              setAssignmentsCapacities(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.assignmentsCapacities)) {
+                  return serverState.assignmentsCapacities;
+                }
+                return prev;
+              });
+            }
+            if (serverState.schoolName !== undefined && serverState.schoolName !== schoolName) {
+              setSchoolName(serverState.schoolName);
+            }
+            if (typeof serverState.studentGrade === 'number' && serverState.studentGrade !== studentGrade) {
+              setStudentGrade(serverState.studentGrade);
+            }
+            if (typeof serverState.studentClass === 'number' && serverState.studentClass !== studentClass) {
+              setStudentClass(serverState.studentClass);
+            }
+            if (typeof serverState.classmateCount === 'number' && serverState.classmateCount !== classmateCount) {
+              setClassmateCount(serverState.classmateCount);
+            }
+            if (serverState.isAutoCapacity !== undefined && serverState.isAutoCapacity !== isAutoCapacity) {
+              setIsAutoCapacity(serverState.isAutoCapacity);
+            }
+            if (serverState.customCapacity) {
+              setCustomCapacity(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(serverState.customCapacity)) {
+                  return serverState.customCapacity;
+                }
+                return prev;
+              });
+            }
+            if (serverState.hasVotedSimulated !== undefined) {
+              setHasVotedSimulated(!!serverState.hasVotedSimulated);
+            }
+
+            // 3. Sync student-only states (Step controls with yanking protection)
             if (viewMode === 'student') {
               if (typeof serverState.step === 'number' && serverState.step !== step) {
-                setStep(serverState.step);
+                // If local step is positive but server returns 0 (due to container sleep reset), protect against yanking
+                if (serverState.step === 0 && step > 0) {
+                  console.warn("[Sync] Server step is 0, local is positive. Protecting against ephemeral Vercel sleep resets.");
+                } else {
+                  setStep(serverState.step);
+                }
               }
-              if (Array.isArray(serverState.rolePool)) {
-                setRolePool(serverState.rolePool);
-              }
-              if (serverState.roleVotes) {
-                setRoleVotes(serverState.roleVotes);
-              }
-              if (Array.isArray(serverState.classmates)) {
-                setClassmates(serverState.classmates);
-              }
-              if (serverState.assignments) {
-                setAssignments(serverState.assignments);
-              }
-              if (serverState.schoolName !== undefined && serverState.schoolName !== schoolName) {
-                setSchoolName(serverState.schoolName);
-              }
-              if (typeof serverState.studentGrade === 'number' && serverState.studentGrade !== studentGrade) {
-                setStudentGrade(serverState.studentGrade);
-              }
-              if (typeof serverState.studentClass === 'number' && serverState.studentClass !== studentClass) {
-                setStudentClass(serverState.studentClass);
-              }
-              setHasVotedSimulated(!!serverState.hasVotedSimulated);
-              setClassmateCount(serverState.classmateCount || 24);
-              setIsAutoCapacity(serverState.isAutoCapacity ?? true);
-              setCustomCapacity(serverState.customCapacity || {});
-              setMatchDetails(serverState.matchDetails || {});
             }
           }
         }
@@ -736,7 +806,7 @@ export const RoleFlow = () => {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [groupId, viewMode, step, schoolName, studentGrade, studentClass]);
+  }, [groupId, viewMode, step, schoolName, studentGrade, studentClass, classmateCount, isAutoCapacity]);
 
   // Handle reset isPrintingAll after printing
   useEffect(() => {
@@ -1192,6 +1262,26 @@ JSON 포맷:
     }
   };
 
+  const handleStudentSubmitSuggestions = () => {
+    if (groupId && viewMode === 'student') {
+      const mySuggestedRoles = rolePool.filter(r => r.recommendedBy === studentName);
+      if (mySuggestedRoles.length === 0) {
+        alert('우리 반을 위해 해결하고 싶은 역할을 최소 1개 이상 제안해 주세요! 아래 "새로운 역할 직접 제안하기"나 "아리의 아이디어 상자"에서 역할을 추가할 수 있어요.');
+        return;
+      }
+      const confirmSubmit = window.confirm('정말로 이 역할들을 제안하고 제출하시겠습니까? 제출한 뒤에는 역할을 수정할 수 없습니다.');
+      if (confirmSubmit) {
+        setIsSubmittedForStep(true);
+      }
+    } else {
+      if (rolePool.length < 4) {
+        alert('최소 4개 이상의 역할이 있어야 다음 단계로 넘어갈 수 있습니다!');
+        return;
+      }
+      nextStep();
+    }
+  };
+
   // Merge similar roles using AI
   const handleMergeRolesAI = async () => {
     if (rolePool.length < 2) {
@@ -1341,6 +1431,71 @@ JSON 포맷:
 
   // Step 4: Simulate classmate votes removed from direct button click
 
+  const getDiverseFillerRoles = (currentPool: Role[], neededCount: number): Role[] => {
+    const existingNames = currentPool.map(r => r.name.toLowerCase());
+    const unusedPresets: any[] = [];
+    
+    // 1. Collect unused presets from DEFAULT_ROLES_MAP
+    Object.keys(DEFAULT_ROLES_MAP).forEach(key => {
+      const presets = DEFAULT_ROLES_MAP[key] || [];
+      presets.forEach(p => {
+        if (!existingNames.includes(p.name.toLowerCase())) {
+          unusedPresets.push({ ...p, problemId: key });
+        }
+      });
+    });
+
+    // 2. Extra backup presets for diversity
+    const backupPresets = [
+      { name: '칭찬 우체부 💌', job: '친구들의 다정한 선행을 발견해 칭찬함에 넣고 일주일에 한 번씩 소개해요.', reason: '서로를 칭찬하고 배려하는 긍정적인 반 분위기를 만들기 위해서예요.', problemId: 'school' },
+      { name: '인사 요정 🙋', job: '아침에 교실에 들어오는 친구들과 선생님께 웃는 얼굴로 밝게 먼저 인사를 건네며 하루를 열어요.', reason: '서로 반갑게 마주하며 기분 좋은 학급 아침 문화를 만들기 위해서예요.', problemId: 'school' },
+      { name: '체육 부장 ⚽', job: '체육 시간에 쓸 운동 기구를 안전하게 준비하고, 운동이 끝난 후 다시 물품을 깨끗하게 정리해서 보관해요.', reason: '물건 분실 없이 안전하고 신나는 신체 활동을 다 함께 즐기기 위해서예요.', problemId: 'school' },
+      { name: '급식 줄 지키미 🍱', job: '점심시간 급식실 앞에서 질서 있고 바르게 친구들이 줄을 설 수 있도록 친절하게 돕습니다.', reason: '차례를 지키며 다치는 친구 없이 다 함께 평화로운 점심시간을 만들기 위해서예요.', problemId: 'school' },
+      { name: '우편 배달부 📢', job: '가정통신문이나 학습 교구재, 알림장 같은 인쇄물들을 모둠별로 신속하고 공평하게 나누어 줍니다.', reason: '학급과 학교의 소중한 소식을 친구들이 빠짐없이 공유받도록 돕기 위해서예요.', problemId: 'school' },
+      { name: '미소 지기 🩹', job: '친구들이 다치거나 마음이 아플 때 다정하게 보건실로 안내해주고 상처 밴드를 건네며 위로해요.', reason: '교실 속 아픈 친구를 상냥하게 돌보아 마음의 상처까지 달래주기 위해서예요.', problemId: 'school' }
+    ];
+
+    backupPresets.forEach(p => {
+      if (!existingNames.includes(p.name.toLowerCase()) && !unusedPresets.some(u => u.name === p.name)) {
+        unusedPresets.push(p);
+      }
+    });
+
+    const filler: Role[] = [];
+    let idx = 0;
+    while (filler.length < neededCount) {
+      if (idx < unusedPresets.length) {
+        const item = unusedPresets[idx];
+        filler.push({
+          id: `filler-role-${idx}-${Date.now()}`,
+          name: item.name,
+          job: item.job,
+          reason: item.reason,
+          problemId: item.problemId,
+          recommendedBy: 'AI 아리 (부족 보충)',
+          votes: 0,
+          capacity: 1
+        });
+      } else {
+        // Absolute fallback if we need even more than available presets
+        const num = filler.length - unusedPresets.length + 1;
+        filler.push({
+          id: `filler-fallback-${num}-${Date.now()}`,
+          name: `새싹 도우미 ${num} 🌱`,
+          job: '교실 구석구석 정리가 필요한 사소한 일손을 돕고 정리정돈을 함께 지원해요.',
+          reason: '우리 교실의 모든 구성원이 소외됨 없이 1인 1역할을 맡아 책임을 다하기 위해서예요.',
+          problemId: 'trash',
+          recommendedBy: 'AI 아리 (임시 보충)',
+          votes: 0,
+          capacity: 1
+        });
+      }
+      idx++;
+    }
+
+    return filler;
+  };
+
   // Step 4: AI generate extra roles up to classmateCount + 1
   const handleGenerateExtraRolesAI = async (targetCount: number) => {
     setIsGeneratingExtraRoles(true);
@@ -1407,26 +1562,20 @@ JSON 포맷:
           capacity: 1
         }));
         
-        const finalPool = [...rolePool, ...extraRoles];
+        let finalPool = [...rolePool, ...extraRoles];
+        // If AI returned fewer roles than needed, pad with our diverse filler roles!
+        if (finalPool.length < targetCount) {
+          const shortCount = targetCount - finalPool.length;
+          const fillers = getDiverseFillerRoles(finalPool, shortCount);
+          finalPool = [...finalPool, ...fillers];
+        }
         setRolePool(finalPool);
         return finalPool;
       }
     } catch (error) {
-      console.error('AI Extra Role Generation Error:', error);
-      const fallbackRoles: Role[] = [];
-      for (let i = 0; i < needed; i++) {
-        fallbackRoles.push({
-          id: `fallback-extra-${i}-${Date.now()}`,
-          name: `새싹 도우미 ${i + 1}`,
-          job: '교실의 부족한 일손을 돕고 친구들의 물건 정리를 지원해요.',
-          reason: '우리 학급의 모든 구성원이 1인 1역할을 기쁘게 나누어 맡기 위해서예요.',
-          problemId: selectedProblems[0] || 'trash',
-          recommendedBy: 'AI 아리 (임시 보충)',
-          votes: 0,
-          capacity: 1
-        });
-      }
-      const finalPool = [...rolePool, ...fallbackRoles];
+      console.error('AI Extra Role Generation Error, falling back to diverse presets:', error);
+      const fillers = getDiverseFillerRoles(rolePool, needed);
+      const finalPool = [...rolePool, ...fillers];
       setRolePool(finalPool);
       return finalPool;
     } finally {
@@ -1512,10 +1661,13 @@ JSON 포맷:
     }
 
     const finalVotes = getCurrentRoleVotes();
-    const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, finalVotes);
+    let distributedCaps = { ...customCapacity };
     
-    setCustomCapacity(distributedCaps);
-    setIsAutoCapacity(false);
+    if (isAutoCapacity) {
+      distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, finalVotes);
+      setCustomCapacity(distributedCaps);
+    }
+    
     setHasVotedSimulated(true);
     
     setRolePool(prevPool => {
@@ -1592,7 +1744,29 @@ JSON 포맷:
       counts[role.id] = { first: 0, second: 0, third: 0, total: 0 };
     });
 
-    const students = getAllStudentsList();
+    // If in group mode, only sum the choices of connected real students
+    let students: any[] = [];
+    if (groupId) {
+      students = Object.values(groupRealStudents).map((s: any) => {
+        return {
+          id: s.id,
+          name: s.name,
+          applications: s.id === myStudentId ? { ...applications } : (s.applications || { first: '', second: '', third: '' })
+        };
+      });
+      // Ensure current user's local selection is included immediately in student view if not synced yet
+      if (viewMode === 'student' && !students.some(st => st.id === myStudentId)) {
+        students.push({
+          id: myStudentId,
+          name: studentName,
+          applications: { ...applications }
+        });
+      }
+    } else {
+      // In single player/offline mode, fall back to the padded simulated classmates list
+      students = getAllStudentsList();
+    }
+
     students.forEach(st => {
       const { first, second, third } = st.applications;
       if (counts[first]) {
@@ -1663,25 +1837,14 @@ JSON 포맷:
   const handleExecuteAllocation = () => {
     setIsAssigning(true);
     
-    const allStudentsList: Student[] = [
-      {
-        id: 'user-student',
-        name: studentName + ' (나)',
-        isUser: true,
-        applications: { ...applications },
-        suitability: { ...fitTestAnswers ? Object.keys(fitTestAnswers).reduce((acc, k) => {
-          acc[k] = calculatePercent(k);
-          return acc;
-        }, {} as Record<string, number>) : {} }
-      },
-      ...classmates.map(c => ({
-        id: c.id,
-        name: c.name,
-        isUser: false,
-        applications: c.applications,
-        suitability: c.suitability
-      }))
-    ];
+    // Map the combined list of real students and simulated classmates to match algorithm inputs
+    const allStudentsList: Student[] = getAllStudentsList().map(s => ({
+      id: s.id,
+      name: s.name,
+      isUser: s.isUser,
+      applications: s.applications,
+      suitability: s.suitability
+    }));
 
     setTimeout(() => {
       const matchResult = runMatchAlgorithm(allStudentsList, rolePool, isAutoCapacity ? undefined : customCapacity);
@@ -2134,9 +2297,11 @@ JSON 포맷:
         }
       }
 
-      const distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, newVotes);
-      setCustomCapacity(distributedCaps);
-      setIsAutoCapacity(false);
+      let distributedCaps = { ...customCapacity };
+      if (isAutoCapacity) {
+        distributedCaps = distributeCapacitiesByVotes(currentPool, totalStudents, newVotes);
+        setCustomCapacity(distributedCaps);
+      }
       setRolePool(prevPool => {
         const poolToUse = currentPool.length > prevPool.length ? currentPool : prevPool;
         return poolToUse.map(r => ({
@@ -4289,7 +4454,7 @@ JSON 포맷:
                   </div>
                 )}
 
-                {renderStageFooter(3, undefined, isGeneratingRoles || rolePool.length < 4, '역할 투표 제출하기 📤')}
+                {renderStageFooter(3, handleStudentSubmitSuggestions, isGeneratingRoles, '역할 제안 제출하기 📤')}
               </div>
             )}
 
@@ -4425,7 +4590,7 @@ JSON 포맷:
             {/* STEP 5: ROLE EXPLORATION & SUITABILITY TEST */}
             {step === 5 && (
               <div className="stage-content animate-slide-in">
-                <h2 className="stage-title">⭐ 나와 어울리는 역할 찾기 (적합도 진단)</h2>
+                <h2 className="stage-title">⭐ 나와 맞춤 (적합도 진단)</h2>
                 <p className="stage-desc">각 역할을 누르고 스마일 스티커를 골라 척도를 평가해봐! 최소 3개 이상 완료해야 해.</p>
 
                 <div className="fit-split-layout">
@@ -4828,7 +4993,7 @@ JSON 포맷:
                           📊 실시간 경쟁률 현황
                         </h3>
                         <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                          총 {classmateCount + 1}명의 1지망 실시간 지원 현황입니다.
+                          총 {groupId ? Object.keys(groupRealStudents).length : classmateCount + 1}명의 1지망 실시간 지원 현황입니다.
                         </p>
                       </div>
 
@@ -5004,9 +5169,10 @@ JSON 포맷:
                 <p className="stage-desc no-print">축하합니다! 모두가 한 학기 동안 소중하게 이끌어갈 학급 1인 1역할 배치도와 임명장입니다.</p>
 
                 {(() => {
-                  const assignedRoleId = assignments['user-student'];
+                  const myId = groupId ? myStudentId : 'user-student';
+                  const assignedRoleId = assignments[myId];
                   const role = rolePool.find(r => r.id === assignedRoleId);
-                  const detail = matchDetails['user-student'];
+                  const detail = matchDetails[myId];
                   
                   let choiceRankKorean = '1지망';
                   if (detail?.choiceRank === 'second') choiceRankKorean = '2지망';
@@ -5104,30 +5270,30 @@ JSON 포맷:
                             const assignedToThisRole: string[] = [];
                             
                             // Check user
-                            if (assignments['user-student'] === r.id) {
-                              assignedToThisRole.push(studentName + ' ⭐');
-                            }
+                             // Check all students (real + simulated padded)
+                             const allSts = getAllStudentsList();
+                             const myId = groupId ? myStudentId : 'user-student';
+                             allSts.forEach(s => {
+                               if (assignments[s.id] === r.id) {
+                                 assignedToThisRole.push(s.name + (s.id === myId ? ' ⭐' : ''));
+                               }
+                             });
 
-                            // Check classmates
-                            classmates.forEach(c => {
-                              if (assignments[c.id] === r.id) {
-                                assignedToThisRole.push(c.name);
-                              }
-                            });
+                             const maxCapacity = assignmentsCapacities[r.id] ?? r.capacity ?? 1;
 
-                            return (
-                              <div key={r.id} className="placement-card">
-                                <h4>
-                                  {r.name}{' '}
-                                  <span className="placement-capacity-tag" style={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'normal',
-                                    color: '#6b7280',
-                                    marginLeft: '4px'
-                                  }}>
-                                    ({assignedToThisRole.length}/{assignmentsCapacities[r.id] !== undefined ? assignmentsCapacities[r.id] : 1}명)
-                                  </span>
-                                </h4>
+                             return (
+                               <div key={r.id} className="placement-card">
+                                 <h4>
+                                   {r.name}{' '}
+                                   <span className="placement-capacity-tag" style={{
+                                     fontSize: '0.8rem',
+                                     fontWeight: 'normal',
+                                     color: '#6b7280',
+                                     marginLeft: '4px'
+                                   }}>
+                                     ({assignedToThisRole.length}/{maxCapacity}명)
+                                   </span>
+                                 </h4>
                                 <p className="placement-job-desc">{r.job}</p>
                                 <div className="placement-names-list">
                                   {assignedToThisRole.map((name, nIdx) => (
