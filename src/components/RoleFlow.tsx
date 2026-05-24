@@ -4565,7 +4565,7 @@ JSON 포맷:
                 {!(groupId && viewMode === 'student') && (
                   <div className="ai-assist-box">
                     <div className="ai-assist-badge">아리의 마법</div>
-                    <p>AI 조수가 특별히 더 창의적이고 재미있는 해결사 역할을 추천해주거나, 너무 중복되고 비슷한 역할을 하나로 깔끔하게 정리해 줄 수 있어요!</p>
+                    <p>AI 조수가 특별히 더 창의적이고 재미있는 해결사 역할을 추천해 줄 수 있어요!</p>
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
                       <button 
                         type="button"
@@ -4580,29 +4580,6 @@ JSON 포맷:
                         ) : (
                           <>
                             <Sparkles size={16} /> AI 특별 역할 추천받기
-                          </>
-                        )}
-                      </button>
-                      <button 
-                        type="button" 
-                        className="btn-ai-action btn-ai-merge-roles"
-                        onClick={handleMergeRolesAI}
-                        disabled={isMergingRoles || rolePool.length < 2}
-                        style={{
-                          background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
-                          color: '#4338ca',
-                          border: '2.5px solid #818cf8',
-                          boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.15)',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        {isMergingRoles ? (
-                          <>
-                            <RefreshCw className="spinning-icon" size={16} /> 역할 통합 중...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={16} /> 너무 비슷한 역할 하나로 통합 (AI 정리)
                           </>
                         )}
                       </button>
