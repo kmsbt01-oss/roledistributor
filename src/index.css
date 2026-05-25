@@ -2609,9 +2609,9 @@ body {
 
 .vote-roles-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  max-height: 58vh;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  max-height: 72vh;
   overflow-y: auto;
   padding-right: 8px;
 }

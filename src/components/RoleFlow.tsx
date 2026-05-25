@@ -4911,7 +4911,7 @@ JSON 포맷:
                       const isVoted = userVotes.includes(role.id);
                       const voteCount = getCurrentRoleVotes()[role.id] || 0;
                       return (
-                        <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`} style={{ paddingRight: '54px', position: 'relative' }}>
+                        <div key={role.id} className={`vote-role-card ${isVoted ? 'voted' : ''}`} style={{ position: 'relative' }}>
                           <button
                             type="button"
                             className={`btn-vote-floating ${isVoted ? 'active' : ''}`}
@@ -4921,11 +4921,11 @@ JSON 포맷:
                             <Heart size={20} fill={isVoted ? 'white' : 'none'} strokeWidth={2.5} />
                           </button>
 
-                          <div className="vote-card-header">
+                          <div className="vote-card-header" style={{ paddingRight: '36px' }}>
                             <span className="vote-card-category">{prob.emoji} {prob.title}</span>
                           </div>
                           
-                          <h3 className="vote-card-title">{role.name}</h3>
+                          <h3 className="vote-card-title" style={{ paddingRight: '36px' }}>{role.name}</h3>
                           
                           <div className="vote-card-detail-box job-box">
                             <span className="detail-box-label">📋 해야 할 일</span>
